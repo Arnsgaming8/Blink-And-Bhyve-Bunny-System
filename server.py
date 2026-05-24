@@ -72,6 +72,7 @@ PAGE = r"""<!DOCTYPE html>
   @media (max-width: 600px) {
     body { padding: 12px; }
     h1 { font-size: 1.2rem; }
+    .toolbar { gap: 6px; }
     .toolbar button { flex: 1; text-align: center; }
     .twofa-form { flex-direction: column; align-items: stretch; }
     .twofa-form input { width: 100%; }
@@ -82,7 +83,20 @@ PAGE = r"""<!DOCTYPE html>
     .entry .copy-btn { padding: 4px 12px; }
     .entry .trace { font-size: 0.72rem; max-height: 200px; }
     .entry .msg { font-size: 0.8rem; }
+    .water-form { flex-direction: column; }
   }
+  .water-form { display: flex; gap: 8px; align-items: center; margin-bottom: 16px;
+                background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+                padding: 12px 16px; flex-wrap: wrap; }
+  .water-form label { color: #8b949e; font-size: 0.85rem; }
+  .water-form input { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+                      padding: 6px 10px; color: #c9d1d9; font-size: 0.9rem; width: 70px; }
+  .water-form input:focus { outline: none; border-color: #58a6ff; }
+  .water-form select { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+                       padding: 6px 8px; color: #c9d1d9; font-size: 0.85rem; }
+  .water-form button.go { background: #238636; border-color: #238636; color: #fff;
+                          padding: 6px 20px; font-weight: 600; }
+  .water-form button.go:hover { background: #2ea043; }
 </style>
 </head>
 <body>
@@ -107,6 +121,18 @@ PAGE = r"""<!DOCTYPE html>
   <button onclick="waterZone()" id="waterBtn">Water Zone <span id="zoneNum">?</span></button>
   <span class="badge" id="zoneBadge" style="display:none"></span>
   <button class="danger" onclick="clearErrors()">Clear All</button>
+</div>
+<div class="water-form">
+  <label>Zone</label>
+  <input type="number" id="customZone" value="6" min="1" max="12" style="width:60px">
+  <label>Duration</label>
+  <input type="number" id="customDur" value="1" min="1" style="width:70px">
+  <select id="customUnit">
+    <option value="m">minutes</option>
+    <option value="s">seconds</option>
+  </select>
+  <button class="go" onclick="customWater()">Go</button>
+  <span id="customStatus" style="color:#8b949e;font-size:0.85rem"></span>
 </div>
 <div id="entries"></div>
 
@@ -240,7 +266,7 @@ async function waterZone() {
   btn.disabled = true;
   btn.textContent = "Watering...";
   try {
-    const r = await fetch("/api/water/start", { method: "POST" });
+    const r = await fetch("/api/water/start", { method: "POST", headers: {"Content-Type": "application/json"}, body: "{}" });
     const data = await r.json();
     if (data.ok) {
       btn.textContent = "Watering started!";
@@ -253,6 +279,24 @@ async function waterZone() {
     btn.textContent = "Network error";
     setTimeout(() => { btn.textContent = "Water Zone " + (data.zone || "?"); btn.disabled = false; }, 3000);
   }
+}
+async function customWater() {
+  const zone = document.getElementById("customZone").value;
+  const dur = document.getElementById("customDur").value;
+  const unit = document.getElementById("customUnit").value;
+  const status = document.getElementById("customStatus");
+  if (!zone || !dur) { status.textContent = "Enter zone and duration"; return; }
+  status.textContent = "Starting...";
+  try {
+    const r = await fetch("/api/water/start", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({zone: parseInt(zone), duration: parseInt(dur), unit})
+    });
+    const data = await r.json();
+    status.textContent = data.ok ? `Zone ${zone} started for ${dur}${unit}` : "Error: " + (data.error || "unknown");
+    if (data.ok) setTimeout(() => status.textContent = "", 3000);
+  } catch(e) { status.textContent = "Network error"; }
 }
 async function loadConfig() {
   try {
@@ -377,19 +421,22 @@ async def handle_2fa_resend(request):
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 
-async def _manual_water():
+async def _manual_water(zone=None, duration_seconds=None):
     try:
         from bridge import CONFIG, DURATION_SECONDS, BHyveClient
+        if zone is None:
+            zone = CONFIG["zone_number"]
+        if duration_seconds is None:
+            duration_seconds = DURATION_SECONDS
         async with aiohttp.ClientSession() as session:
             bhyve = BHyveClient(session)
             bhyve.device_id = CONFIG["device_id"]
-            bhyve.zone = CONFIG["zone_number"]
+            bhyve.zone = zone
             await bhyve.login()
-            minutes = max(1, round(DURATION_SECONDS / 60))
+            minutes = max(1, round(duration_seconds / 60))
             await bhyve.start_zone(minutes)
-            zone = CONFIG["zone_number"]
-            errors.log_error("watering", f"Manual zone {zone} started ({DURATION_SECONDS}s)")
-            await asyncio.sleep(DURATION_SECONDS)
+            errors.log_error("watering", f"Manual zone {zone} started ({duration_seconds}s)")
+            await asyncio.sleep(duration_seconds)
             await bhyve.stop_zone()
             errors.log_error("watering", f"Manual zone {zone} stopped")
     except Exception as e:
@@ -406,9 +453,27 @@ async def handle_config(request):
 
 
 async def handle_water_start(request):
+    try:
+        body = await request.json()
+        zone = body.get("zone")
+        duration = body.get("duration")
+        unit = body.get("unit", "m")
+        if duration and unit == "s":
+            duration_seconds = int(duration)
+        elif duration:
+            duration_seconds = int(duration) * 60
+        else:
+            zone = None
+            duration_seconds = None
+    except Exception:
+        zone = None
+        duration_seconds = None
+    asyncio.ensure_future(_manual_water(zone, duration_seconds))
     from bridge import CONFIG
-    asyncio.ensure_future(_manual_water())
-    return web.json_response({"ok": True, "zone": CONFIG.get("zone_number", "?")})
+    return web.json_response({
+        "ok": True,
+        "zone": zone if zone else CONFIG.get("zone_number"),
+    })
 
 
 def create_app():
