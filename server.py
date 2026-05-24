@@ -73,6 +73,7 @@ PAGE = r"""<!DOCTYPE html>
   <div class="twofa-form">
     <input type="text" id="twofaInput" placeholder="6-digit code" maxlength="6" autocomplete="off">
     <button class="primary" onclick="submit2FA()">Submit</button>
+    <button onclick="resend2FA()">Resend Code</button>
   </div>
   <div class="twofa-status" id="twofaStatus"></div>
 </div>
@@ -141,6 +142,25 @@ async function submit2FA() {
     status.style.color = "#da3633";
   }
 }
+async function resend2FA() {
+  const status = document.getElementById("twofaStatus");
+  status.textContent = "Requesting new code...";
+  status.style.color = "#8b949e";
+  try {
+    const r = await fetch("/api/blink/2fa/resend", { method: "POST" });
+    const data = await r.json();
+    if (data.ok) {
+      status.textContent = "New code sent! Check your email.";
+      status.style.color = "#3fb950";
+    } else {
+      status.textContent = "Error: " + (data.error || "unknown");
+      status.style.color = "#da3633";
+    }
+  } catch(e) {
+    status.textContent = "Network error: " + e.message;
+    status.style.color = "#da3633";
+  }
+}
 async function check2FA() {
   try {
     const r = await fetch("/api/blink/2fa/status");
@@ -198,6 +218,23 @@ async def handle_2fa_submit(request):
         return web.json_response({"ok": False, "error": str(e)}, status=400)
 
 
+async def handle_2fa_resend(request):
+    blink = state.blink_instance
+    if blink is None:
+        return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
+
+    try:
+        await blink.auth.startup()
+    except BlinkTwoFARequiredError:
+        errors.log_error("main.blink_2fa", "New 2FA code sent to email")
+        return web.json_response({"ok": True, "message": "New code sent to your email"})
+    except Exception as e:
+        errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    return web.json_response({"ok": False, "error": "Login succeeded unexpectedly"}, status=400)
+
+
 def create_app():
     app = web.Application()
     app.router.add_get("/", handle_index)
@@ -206,6 +243,7 @@ def create_app():
     app.router.add_get("/api/status", handle_status)
     app.router.add_get("/api/blink/2fa/status", handle_2fa_status)
     app.router.add_post("/api/blink/2fa", handle_2fa_submit)
+    app.router.add_post("/api/blink/2fa/resend", handle_2fa_resend)
     return app
 
 
