@@ -318,40 +318,32 @@ async def handle_2fa_resend(request):
     if blink is None:
         return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
 
-    auth = blink.auth
-    from blinkpy.helpers.pkce import generate_pkce_pair
-    from blinkpy import api
-
     try:
-        code_verifier, code_challenge = generate_pkce_pair()
+        from blinkpy.blinkpy import Blink
+        from blinkpy.auth import Auth
+        from bridge import CONFIG
+        from blinkpy import api
+        from blinkpy.helpers.pkce import generate_pkce_pair
 
-        auth_success = await api.oauth_authorize_request(auth, auth.hardware_id, code_challenge)
-        if not auth_success:
-            return web.json_response({"ok": False, "error": "Authorization request failed"}, status=500)
-
-        csrf_token = await api.oauth_get_signin_page(auth)
-        if not csrf_token:
-            return web.json_response({"ok": False, "error": "Failed to get CSRF token"}, status=500)
-
-        email = auth.data.get("username")
-        password = auth.data.get("password")
-
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
-
-        login_result = await api.oauth_signin(auth, email, password, csrf_token)
-
-        if login_result == "2FA_REQUIRED":
-            auth._oauth_csrf_token = csrf_token
-            auth._oauth_code_verifier = code_verifier
-            errors.log_error("main.blink_2fa", "New 2FA code sent to email")
-            return web.json_response({"ok": True, "message": "New code sent to your email"})
-        elif login_result == "SUCCESS":
-            return web.json_response({"ok": False, "error": "Login succeeded unexpectedly (no 2FA needed)"}, status=400)
-        else:
-            err_msg = f"Login returned: {login_result}"
-            errors.log_error("main.blink_2fa_resend", err_msg)
-            return web.json_response({"ok": False, "error": err_msg}, status=500)
+        async with aiohttp.ClientSession() as session:
+            fresh = Blink()
+            fresh.auth = Auth(
+                {"username": CONFIG["blink_email"], "password": CONFIG["blink_password"]},
+                session=session,
+            )
+            try:
+                await fresh.auth.startup()
+            except BlinkTwoFARequiredError:
+                csrf = fresh.auth._oauth_csrf_token
+                verifier = fresh.auth._oauth_code_verifier
+                blink.auth._oauth_csrf_token = csrf
+                blink.auth._oauth_code_verifier = verifier
+                state.blink_instance = blink
+                state.twofa_pending = False
+                errors.log_error("main.blink_2fa", "New 2FA code sent to email")
+                return web.json_response({"ok": True, "message": "New code sent to your email"})
+            errors.log_error("main.blink_2fa_resend", "Login succeeded unexpectedly (no 2FA needed)")
+            return web.json_response({"ok": False, "error": "Login succeeded (no 2FA needed)"}, status=400)
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
         return web.json_response({"ok": False, "error": str(e)}, status=500)
