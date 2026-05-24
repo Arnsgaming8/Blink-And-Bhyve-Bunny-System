@@ -75,10 +75,17 @@ def save_last_motion(ts):
         errors.log_error("save_last_motion", f"Cannot write motion file: {e}", exc_info=True)
 
 
+BHYVE_WS = "wss://api.orbitbhyve.com/v1/events"
+PING_INTERVAL = 25
+
+
 class BHyveClient:
     def __init__(self, session):
         self.session = session
         self.token = None
+        self.ws = None
+        self.device_id = CONFIG["device_id"]
+        self.zone = CONFIG["zone_number"]
 
     async def login(self):
         payload = {
@@ -100,43 +107,60 @@ class BHyveClient:
         except aiohttp.ClientError as e:
             raise RuntimeError(f"B-hyve login network error: {e}") from e
 
-    def _auth_headers(self):
-        return {"Orbit-Session-Token": self.token}
+    async def connect_ws(self):
+        if self.ws and not self.ws.closed:
+            return
+        headers = {"orbit-session-token": self.token}
+        self.ws = await self.session.ws_connect(BHYVE_WS, headers=headers)
+        app_conn = {
+            "event": "app_connection",
+            "orbit_session_token": self.token,
+        }
+        await self.ws.send_json(app_conn)
+
+    async def _ping_loop(self):
+        try:
+            while self.ws and not self.ws.closed:
+                await asyncio.sleep(PING_INTERVAL)
+                try:
+                    await self.ws.send_json({"event": "ping"})
+                except Exception:
+                    break
+        except asyncio.CancelledError:
+            pass
 
     async def start_zone(self, minutes):
-        zone = CONFIG["zone_number"]
-        device = CONFIG["device_id"]
         try:
-            async with self.session.put(
-                f"{BHYVE_API}/device/{device}/watering/zone/{zone}",
-                json={"minutes": minutes},
-                headers=self._auth_headers(),
-            ) as r:
-                data = await r.json()
-                if r.status >= 400:
-                    raise RuntimeError(
-                        f"Start zone failed ({r.status}): {data.get('error', data)}"
-                    )
-                return r.status, data
-        except aiohttp.ClientError as e:
-            raise RuntimeError(f"Start zone network error: {e}") from e
+            await self.connect_ws()
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            payload = {
+                "event": "change_mode",
+                "mode": "manual",
+                "device_id": self.device_id,
+                "timestamp": ts,
+                "stations": [{"station": self.zone, "run_time": minutes}],
+                "orbit_session_token": self.token,
+            }
+            await self.ws.send_json(payload)
+            asyncio.ensure_future(self._ping_loop())
+        except Exception as e:
+            raise RuntimeError(f"Start zone failed: {e}") from e
 
     async def stop_zone(self):
-        zone = CONFIG["zone_number"]
-        device = CONFIG["device_id"]
         try:
-            async with self.session.delete(
-                f"{BHYVE_API}/device/{device}/watering/zone/{zone}",
-                headers=self._auth_headers(),
-            ) as r:
-                data = await r.json()
-                if r.status >= 400:
-                    raise RuntimeError(
-                        f"Stop zone failed ({r.status}): {data.get('error', data)}"
-                    )
-                return r.status, data
-        except aiohttp.ClientError as e:
-            raise RuntimeError(f"Stop zone network error: {e}") from e
+            await self.connect_ws()
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            payload = {
+                "event": "change_mode",
+                "mode": "manual",
+                "device_id": self.device_id,
+                "timestamp": ts,
+                "stations": [],
+                "orbit_session_token": self.token,
+            }
+            await self.ws.send_json(payload)
+        except Exception as e:
+            raise RuntimeError(f"Stop zone failed: {e}") from e
 
 
 class BlinkWatcher:
@@ -156,8 +180,8 @@ class BlinkWatcher:
 
         minutes = max(secs / 60, 1 / 60)
         try:
-            status, data = await self.bhyve.start_zone(minutes)
-            print(f"Zone {CONFIG['zone_number']} started. Status: {status}")
+            await self.bhyve.start_zone(minutes)
+            print(f"Zone {CONFIG['zone_number']} started")
         except Exception as e:
             errors.log_error("water_for_duration.start_zone", str(e), exc_info=True)
             print(f"  ERROR: Starting zone failed: {e}")
