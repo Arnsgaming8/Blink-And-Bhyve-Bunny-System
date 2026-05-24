@@ -43,8 +43,13 @@ PAGE = r"""<!DOCTYPE html>
   .entry .time { color: #8b949e; font-size: 0.8rem; }
   .entry .msg { color: #c9d1d9; font-family: monospace; font-size: 0.85rem;
                 white-space: pre-wrap; word-break: break-word; }
+  .entry .actions { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .entry .copy-btn { color: #8b949e; font-size: 0.8rem; cursor: pointer; background: none;
+                     border: 1px solid #30363d; border-radius: 4px; padding: 2px 8px; }
+  .entry .copy-btn:hover { color: #58a6ff; border-color: #58a6ff; }
+  .entry .copy-btn.copied { color: #3fb950; border-color: #3fb950; }
   .entry .trace-toggle { color: #8b949e; font-size: 0.8rem; cursor: pointer;
-                         margin-top: 6px; display: inline-block; }
+                         display: inline-block; }
   .entry .trace-toggle:hover { color: #58a6ff; }
   .entry .trace { display: none; margin-top: 6px; padding: 8px; background: #0d1117;
                   border-radius: 4px; font-family: monospace; font-size: 0.78rem;
@@ -96,22 +101,37 @@ async function refresh() {
     container.innerHTML = '<div class="empty"><div class="icon">&#10003;</div>No errors recorded</div>';
     return;
   }
-  container.innerHTML = errors.map(e => {
+  container.innerHTML = errors.map((e, i) => {
     const isMotion = e.source === "motion";
     const cls = isMotion ? "entry motion" : "entry error";
     const hasTrace = e.traceback && e.traceback !== "None";
+    const encoded = encodeURIComponent(JSON.stringify(e));
     return `<div class="${cls}">
       <div class="head">
         <span class="source">${esc(e.source)}</span>
         <span class="time">${esc(e.timestamp)}</span>
       </div>
       <div class="msg">${esc(e.message)}</div>
-      ${hasTrace ? `<span class="trace-toggle" onclick="this.nextElementSibling.classList.toggle('show')">Show traceback</span>
-      <div class="trace">${esc(e.traceback)}</div>` : ""}
+      <div class="actions">
+        <button class="copy-btn" onclick="copyError(this, '${encoded}')">Copy</button>
+        ${hasTrace ? `<span class="trace-toggle" onclick="this.nextElementSibling.classList.toggle('show')">Show traceback</span>` : ""}
+      </div>
+      ${hasTrace ? `<div class="trace">${esc(e.traceback)}</div>` : ""}
     </div>`;
   }).join("");
 }
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+function copyError(btn, encoded) {
+  const data = JSON.parse(decodeURIComponent(encoded));
+  const text = [data.timestamp, data.source, data.message, data.traceback || ""].filter(Boolean).join("\n\n");
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = "Copied!";
+    btn.classList.add("copied");
+    setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
+  }).catch(() => {
+    btn.textContent = "Failed";
+  });
+}
 async function clearErrors() {
   if (!confirm("Clear all error entries?")) return;
   await fetch("/api/clear", { method: "POST" });
@@ -240,6 +260,10 @@ async def handle_2fa_resend(request):
 
         email = auth.data.get("username")
         password = auth.data.get("password")
+
+        import logging
+        logging.basicConfig(level=logging.DEBUG)
+
         login_result = await api.oauth_signin(auth, email, password, csrf_token)
 
         if login_result == "2FA_REQUIRED":
@@ -250,7 +274,9 @@ async def handle_2fa_resend(request):
         elif login_result == "SUCCESS":
             return web.json_response({"ok": False, "error": "Login succeeded unexpectedly (no 2FA needed)"}, status=400)
         else:
-            return web.json_response({"ok": False, "error": f"Login returned: {login_result}"}, status=500)
+            err_msg = f"Login returned: {login_result}"
+            errors.log_error("main.blink_2fa_resend", err_msg)
+            return web.json_response({"ok": False, "error": err_msg}, status=500)
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
         return web.json_response({"ok": False, "error": str(e)}, status=500)
