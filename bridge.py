@@ -214,10 +214,48 @@ class BlinkWatcher:
             errors.log_error("water_for_duration.stop_zone", str(e), exc_info=True)
             print(f"  ERROR: Stopping zone {zone} failed: {e}")
 
+    async def _handle_2fa_background(self):
+        state.blink_instance = self.blink
+        state.twofa_pending = False
+        try:
+            while True:
+                if state.blink.urls is not None:
+                    state.blink_instance = None
+                    break
+                if not state.twofa_pending:
+                    await asyncio.sleep(1)
+                    continue
+                pin = state.twofa_pin
+                state.twofa_pin = None
+                state.twofa_pending = False
+                try:
+                    ok = await process_2fa_code(self.blink, pin)
+                    if ok:
+                        state.blink_instance = None
+                        state.active_blink = self.blink
+                        print("  2FA re-authentication successful")
+                        break
+                except Exception as e:
+                    errors.log_error("check_motion.2fa", f"Re-auth exception: {e}", exc_info=True)
+                    state.blink_instance = self.blink
+        finally:
+            state.reauth_in_progress = False
+
     async def check_motion(self):
         if self.blink.urls is None:
-            errors.log_error("check_motion.skip", "Blink not authenticated — skipping check (session expired or 2FA pending)")
-            print("  Blink not authenticated, skipping check")
+            if state.reauth_in_progress:
+                print("  Re-auth already in progress, skipping")
+                return
+            try:
+                await self.blink.start()
+            except BlinkTwoFARequiredError:
+                errors.log_error("check_motion.2fa_required", "Blink session expired — enter code on dashboard")
+                print("  Blink session expired, 2FA required")
+                state.reauth_in_progress = True
+                asyncio.ensure_future(self._handle_2fa_background())
+            except Exception as e:
+                errors.log_error("check_motion.reauth", str(e), exc_info=True)
+                print(f"  Blink re-auth failed: {e}")
             return
         try:
             await self.blink.refresh()
@@ -277,6 +315,50 @@ class BlinkWatcher:
             await asyncio.sleep(POLL_INTERVAL)
 
 
+async def process_2fa_code(blink, pin):
+    """Submit a 2FA pin and complete authentication. Returns True on success."""
+    from blinkpy import api as blink_api
+    auth = blink.auth
+    has_csrf = hasattr(auth, "_oauth_csrf_token")
+    has_ver = hasattr(auth, "_oauth_code_verifier")
+    if not has_csrf or not has_ver:
+        errors.log_error("blink_2fa_key", f"OAuth state missing (csrf={has_csrf}, verifier={has_ver}) — click Resend")
+        print("  OAuth state missing — click Resend Code first")
+        return False
+    csrf = auth._oauth_csrf_token
+    verifier = auth._oauth_code_verifier
+    print("  Verifying 2FA code...")
+    ok = await blink_api.oauth_verify_2fa(auth, csrf, pin)
+    if not ok:
+        errors.log_error("blink_2fa_key", "oauth_verify_2fa returned False (wrong/expired code)")
+        print("  Code rejected by Blink. Check the code and try again.")
+        return False
+    print("  Getting authorization code...")
+    code = await blink_api.oauth_get_authorization_code(auth)
+    if not code:
+        errors.log_error("blink_2fa_key", "oauth_get_authorization_code returned None")
+        print("  Failed to get auth code. Try Resend Code.")
+        return False
+    print("  Exchanging code for token...")
+    token_data = await blink_api.oauth_exchange_code_for_token(auth, code, verifier, auth.hardware_id)
+    if not token_data:
+        errors.log_error("blink_2fa_key", "oauth_exchange_code_for_token returned None")
+        print("  Failed to exchange code. Try Resend Code.")
+        return False
+    await auth._process_token_data(token_data)
+    delattr(auth, "_oauth_csrf_token")
+    delattr(auth, "_oauth_code_verifier")
+    try:
+        blink.setup_urls()
+        await blink.get_homescreen()
+        await blink.setup_post_verify()
+    except Exception as e:
+        errors.log_error("blink_2fa_key", f"Post-2FA setup failed: {e}", exc_info=True)
+        print(f"  Post-2FA setup failed: {e}")
+        return False
+    return True
+
+
 async def main():
     print("Starting Blink → B-hyve bridge")
     print(f"  Camera:     {CONFIG.get('camera_name', '?')}")
@@ -299,6 +381,7 @@ async def main():
                     session=session,
                 )
                 await blink.start()
+                state.active_blink = blink
             except BlinkTwoFARequiredError:
                 msg = (
                     "Blink requires two-factor authentication. "
@@ -319,46 +402,11 @@ async def main():
                     state.twofa_pending = False
                     print("  Submitting 2FA code...")
                     try:
-                        from blinkpy import api as blink_api
-                        auth = blink.auth
-                        has_csrf = hasattr(auth, "_oauth_csrf_token")
-                        has_ver = hasattr(auth, "_oauth_code_verifier")
-                        if not has_csrf or not has_ver:
-                            errors.log_error("main.blink_2fa_key", f"OAuth state missing (csrf={has_csrf}, verifier={has_ver}) — click Resend")
-                            print("  OAuth state missing — click Resend Code first")
-                            continue
-                        csrf = auth._oauth_csrf_token
-                        verifier = auth._oauth_code_verifier
-                        print("  Verifying 2FA code...")
-                        ok = await blink_api.oauth_verify_2fa(auth, csrf, pin)
+                        ok = await process_2fa_code(blink, pin)
                         if not ok:
-                            errors.log_error("main.blink_2fa_key", "oauth_verify_2fa returned False (wrong/expired code)")
-                            print("  Code rejected by Blink. Check the code and try again.")
-                            continue
-                        print("  Getting authorization code...")
-                        code = await blink_api.oauth_get_authorization_code(auth)
-                        if not code:
-                            errors.log_error("main.blink_2fa_key", "oauth_get_authorization_code returned None")
-                            print("  Failed to get auth code. Try Resend Code.")
-                            continue
-                        print("  Exchanging code for token...")
-                        token_data = await blink_api.oauth_exchange_code_for_token(auth, code, verifier, auth.hardware_id)
-                        if not token_data:
-                            errors.log_error("main.blink_2fa_key", "oauth_exchange_code_for_token returned None")
-                            print("  Failed to exchange code. Try Resend Code.")
-                            continue
-                        await auth._process_token_data(token_data)
-                        delattr(auth, "_oauth_csrf_token")
-                        delattr(auth, "_oauth_code_verifier")
-                        try:
-                            blink.setup_urls()
-                            await blink.get_homescreen()
-                            await blink.setup_post_verify()
-                        except Exception as e:
-                            errors.log_error("main.blink_2fa_key", f"Post-2FA setup failed: {e}", exc_info=True)
-                            print(f"  Post-2FA setup failed: {e}")
                             continue
                         state.blink_instance = None
+                        state.active_blink = blink
                         errors.log_error("main.blink_2fa", "2FA completed successfully")
                         print("  2FA completed successfully")
                         break

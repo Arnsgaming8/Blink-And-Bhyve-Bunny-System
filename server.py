@@ -245,7 +245,16 @@ async def handle_status(request):
 
 
 async def handle_2fa_status(request):
-    return web.json_response({"required": state.blink_instance is not None and not state.twofa_pending})
+    session_expired = (
+        state.active_blink is not None
+        and state.active_blink.urls is None
+        and state.blink_instance is None
+    )
+    required = (
+        (state.blink_instance is not None and not state.twofa_pending)
+        or session_expired
+    )
+    return web.json_response({"required": required})
 
 
 async def handle_2fa_submit(request):
