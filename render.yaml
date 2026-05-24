@@ -12,7 +12,7 @@ services:
       - key: BLINK_PASSWORD
         sync: false
       - key: CAMERA_NAME
-        value: "Front Door"
+        value: "Back yard"
       - key: BHYVE_EMAIL
         sync: false
       - key: BHYVE_PASSWORD
