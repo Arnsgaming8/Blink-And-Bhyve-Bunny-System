@@ -281,19 +281,49 @@ async def main():
                     state.twofa_pending = False
                     print("  Submitting 2FA code...")
                     try:
-                        auth_state_ok = hasattr(blink.auth, "_oauth_csrf_token") and hasattr(blink.auth, "_oauth_code_verifier")
-                        errors.log_error("main.blink_2fa_debug", f"auth has csrf={hasattr(blink.auth, '_oauth_csrf_token')}, code_ver={hasattr(blink.auth, '_oauth_code_verifier')}")
-                        if not auth_state_ok:
-                            print("  OAuth state missing — clicking Resend may fix this")
-                        success = await blink.send_2fa_code(pin)
-                        if success:
-                            state.blink_instance = None
-                            errors.log_error("main.blink_2fa", "2FA completed successfully")
-                            print("  2FA completed successfully")
-                            break
-                        errors.log_error("main.blink_2fa_key", "2FA send_2fa_code returned False")
-                        print("  2FA failed. Check the code and try again.")
-                        state.blink_instance = blink
+                        from blinkpy import api as blink_api
+                        auth = blink.auth
+                        has_csrf = hasattr(auth, "_oauth_csrf_token")
+                        has_ver = hasattr(auth, "_oauth_code_verifier")
+                        if not has_csrf or not has_ver:
+                            errors.log_error("main.blink_2fa_key", f"OAuth state missing (csrf={has_csrf}, verifier={has_ver}) — click Resend")
+                            print("  OAuth state missing — click Resend Code first")
+                            continue
+                        csrf = auth._oauth_csrf_token
+                        verifier = auth._oauth_code_verifier
+                        print("  Verifying 2FA code...")
+                        ok = await blink_api.oauth_verify_2fa(auth, csrf, pin)
+                        if not ok:
+                            errors.log_error("main.blink_2fa_key", "oauth_verify_2fa returned False (wrong/expired code)")
+                            print("  Code rejected by Blink. Check the code and try again.")
+                            continue
+                        print("  Getting authorization code...")
+                        code = await blink_api.oauth_get_authorization_code(auth)
+                        if not code:
+                            errors.log_error("main.blink_2fa_key", "oauth_get_authorization_code returned None")
+                            print("  Failed to get auth code. Try Resend Code.")
+                            continue
+                        print("  Exchanging code for token...")
+                        token_data = await blink_api.oauth_exchange_code_for_token(auth, code, verifier, auth.hardware_id)
+                        if not token_data:
+                            errors.log_error("main.blink_2fa_key", "oauth_exchange_code_for_token returned None")
+                            print("  Failed to exchange code. Try Resend Code.")
+                            continue
+                        await auth._process_token_data(token_data)
+                        delattr(auth, "_oauth_csrf_token")
+                        delattr(auth, "_oauth_code_verifier")
+                        try:
+                            blink.setup_urls()
+                            await blink.get_homescreen()
+                            await blink.setup_post_verify()
+                        except Exception as e:
+                            errors.log_error("main.blink_2fa_key", f"Post-2FA setup failed: {e}", exc_info=True)
+                            print(f"  Post-2FA setup failed: {e}")
+                            continue
+                        state.blink_instance = None
+                        errors.log_error("main.blink_2fa", "2FA completed successfully")
+                        print("  2FA completed successfully")
+                        break
                     except Exception as e:
                         errors.log_error("main.blink_2fa_key", f"Exception: {e}", exc_info=True)
                         print(f"  ERROR: 2FA submission failed: {e}")
