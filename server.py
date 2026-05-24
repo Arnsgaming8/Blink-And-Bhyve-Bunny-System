@@ -114,7 +114,7 @@ async function refresh() {
       <div class="msg">${esc(e.message)}</div>
       <div class="actions">
         <button class="copy-btn" onclick="copyError(this, '${encoded}')">Copy</button>
-        ${hasTrace ? `<span class="trace-toggle" onclick="this.nextElementSibling.classList.toggle('show')">Show traceback</span>` : ""}
+        ${hasTrace ? `<span class="trace-toggle" onclick="this.parentElement.nextElementSibling.classList.toggle('show')">Show traceback</span>` : ""}
       </div>
       ${hasTrace ? `<div class="trace">${esc(e.traceback)}</div>` : ""}
     </div>`;
