@@ -132,7 +132,7 @@ async function refresh() {
         <button class="copy-btn" onclick="copyError(this, '${encoded}')">Copy</button>
         ${hasTrace ? `<span class="trace-toggle" onclick="this.parentElement.nextElementSibling.classList.toggle('show')">Show traceback</span>` : ""}
       </div>
-      ${hasTrace ? `<div class="trace">${esc(e.traceback)}</div>` : ""}
+      ${hasTrace ? `<div class="trace">${esc(e.traceback)}<br><button class="copy-btn" style="margin-top:6px" onclick="copyError(this, '${encodeURIComponent(JSON.stringify({traceback: e.traceback}))}')">Copy traceback</button></div>` : ""}
     </div>`;
   }).join("");
 }
