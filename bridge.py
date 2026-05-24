@@ -265,28 +265,34 @@ async def main():
                 msg = (
                     "Blink requires two-factor authentication. "
                     "A verification code has been sent to your email. "
-                    "Submit it at the dashboard (POST /api/blink/2fa with {\"pin\": \"...\"})."
+                    "Submit it at the dashboard."
                 )
                 print(f"  2FA REQUIRED: {msg}")
                 errors.log_error("main.blink_2fa", msg)
                 state.blink_instance = blink
                 print("  Waiting for 2FA code via dashboard...")
-                await state.twofa_event.wait()
-                pin = state.twofa_pin
-                print("  Submitting 2FA code...")
-                try:
-                    success = await blink.send_2fa_code(pin)
-                    if not success:
-                        raise RuntimeError("Blink 2FA returned False")
-                    state.twofa_event.clear()
-                    state.blink_instance = None
+                while True:
+                    await state.twofa_event.wait()
+                    pin = state.twofa_pin
                     state.twofa_pin = None
-                    errors.log_error("main.blink_2fa", "2FA completed successfully")
-                    print("  2FA completed successfully")
-                except Exception as e:
-                    errors.log_error("main.blink_2fa_key", str(e), exc_info=True)
-                    print(f"  ERROR: 2FA submission failed: {e}")
-                    return
+                    state.twofa_event.clear()
+                    print("  Submitting 2FA code...")
+                    try:
+                        success = await blink.send_2fa_code(pin)
+                        if success:
+                            state.blink_instance = None
+                            errors.log_error("main.blink_2fa", "2FA completed successfully")
+                            print("  2FA completed successfully")
+                            break
+                        errors.log_error("main.blink_2fa_key", "2FA failed (wrong code or expired)")
+                        print("  2FA failed. Check the code and try again.")
+                        state.blink_instance = blink
+                        state.twofa_pin = None
+                    except Exception as e:
+                        errors.log_error("main.blink_2fa_key", str(e), exc_info=True)
+                        print(f"  ERROR: 2FA submission failed: {e}")
+                        state.blink_instance = blink
+                        state.twofa_pin = None
             except Exception as e:
                 errors.log_error("main.blink_setup", str(e), exc_info=True)
                 print(f"  ERROR: Blink setup failed: {e}")
