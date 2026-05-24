@@ -428,7 +428,11 @@ async def main():
                     },
                     session=session,
                 )
-                await blink.start()
+                if not await blink.start():
+                    msg = "Blink login failed. Check credentials."
+                    print(f"  {msg}")
+                    errors.log_error("main.blink_setup", msg)
+                    return
                 state.active_blink = blink
             except BlinkTwoFARequiredError:
                 msg = (

@@ -343,7 +343,10 @@ async def handle_2fa_resend(request):
         from blinkpy.helpers.pkce import generate_pkce_pair
 
         try:
-            await blink.start()
+            ok = await blink.start()
+            if not ok:
+                errors.log_error("main.blink_2fa_resend", "Blink login failed")
+                return web.json_response({"ok": False, "error": "Blink login failed (check credentials)"}, status=500)
         except BlinkTwoFARequiredError:
             csrf = getattr(blink.auth, "_oauth_csrf_token", None)
             verifier = getattr(blink.auth, "_oauth_code_verifier", None)
