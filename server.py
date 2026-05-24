@@ -319,31 +319,36 @@ async def handle_2fa_resend(request):
         return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
 
     try:
-        from blinkpy.blinkpy import Blink
-        from blinkpy.auth import Auth
-        from bridge import CONFIG
-        from blinkpy import api
+        from blinkpy.auth import BlinkTwoFARequiredError
         from blinkpy.helpers.pkce import generate_pkce_pair
 
-        async with aiohttp.ClientSession() as session:
-            fresh = Blink()
-            fresh.auth = Auth(
-                {"username": CONFIG["blink_email"], "password": CONFIG["blink_password"]},
-                session=session,
-            )
-            try:
-                await fresh.auth.startup()
-            except BlinkTwoFARequiredError:
-                csrf = fresh.auth._oauth_csrf_token
-                verifier = fresh.auth._oauth_code_verifier
+        try:
+            await blink.start()
+        except BlinkTwoFARequiredError:
+            csrf = getattr(blink.auth, "_oauth_csrf_token", None)
+            verifier = getattr(blink.auth, "_oauth_code_verifier", None)
+            if not csrf or not verifier:
+                code_verifier, code_challenge = generate_pkce_pair()
+                blink.auth._oauth_code_verifier = code_verifier
+                from blinkpy import api
+                ok = await api.oauth_authorize_request(blink.auth, blink.auth.hardware_id, code_challenge)
+                if not ok:
+                    return web.json_response({"ok": False, "error": "OAuth authorize request failed"}, status=500)
+                csrf = await api.oauth_get_signin_page(blink.auth)
+                if not csrf:
+                    return web.json_response({"ok": False, "error": "Failed to get CSRF token"}, status=500)
+                email = blink.auth.data.get("username")
+                password = blink.auth.data.get("password")
+                result = await api.oauth_signin(blink.auth, email, password, csrf)
+                if result != "2FA_REQUIRED":
+                    return web.json_response({"ok": False, "error": f"Signin returned: {result}"}, status=500)
                 blink.auth._oauth_csrf_token = csrf
-                blink.auth._oauth_code_verifier = verifier
-                state.blink_instance = blink
-                state.twofa_pending = False
-                errors.log_error("main.blink_2fa", "New 2FA code sent to email")
-                return web.json_response({"ok": True, "message": "New code sent to your email"})
-            errors.log_error("main.blink_2fa_resend", "Login succeeded unexpectedly (no 2FA needed)")
-            return web.json_response({"ok": False, "error": "Login succeeded (no 2FA needed)"}, status=400)
+            state.blink_instance = blink
+            state.twofa_pending = False
+            errors.log_error("main.blink_2fa", "New 2FA code sent to email")
+            return web.json_response({"ok": True, "message": "New code sent to your email"})
+        errors.log_error("main.blink_2fa_resend", "start() succeeded unexpectedly (no 2FA needed)")
+        return web.json_response({"ok": False, "error": "Login succeeded (no 2FA needed)"}, status=400)
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
         return web.json_response({"ok": False, "error": str(e)}, status=500)
