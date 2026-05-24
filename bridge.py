@@ -6,9 +6,10 @@ from datetime import datetime, timezone
 import aiohttp
 import yaml
 from blinkpy.blinkpy import Blink
-from blinkpy.auth import Auth
+from blinkpy.auth import Auth, BlinkTwoFARequiredError
 
 import errors
+import state
 
 
 def load_config():
@@ -260,6 +261,28 @@ async def main():
                     session=session,
                 )
                 await blink.start()
+            except BlinkTwoFARequiredError:
+                msg = (
+                    "Blink requires two-factor authentication. "
+                    "A verification code has been sent to your email. "
+                    "Submit it at the dashboard (POST /api/blink/2fa with {\"pin\": \"...\"})."
+                )
+                print(f"  2FA REQUIRED: {msg}")
+                errors.log_error("main.blink_2fa", msg)
+                state.blink_instance = blink
+                print("  Waiting for 2FA code via dashboard...")
+                await state.twofa_event.wait()
+                pin = state.twofa_pin
+                print("  Submitting 2FA code...")
+                try:
+                    await blink.auth.send_auth_key(pin)
+                    await blink.setup_post_verification()
+                    errors.log_error("main.blink_2fa", "2FA completed successfully")
+                    print("  2FA completed successfully")
+                except Exception as e:
+                    errors.log_error("main.blink_2fa_key", str(e), exc_info=True)
+                    print(f"  ERROR: 2FA submission failed: {e}")
+                    return
             except Exception as e:
                 errors.log_error("main.blink_setup", str(e), exc_info=True)
                 print(f"  ERROR: Blink setup failed: {e}")
