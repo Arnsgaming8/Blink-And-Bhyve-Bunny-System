@@ -223,16 +223,37 @@ async def handle_2fa_resend(request):
     if blink is None:
         return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
 
+    auth = blink.auth
+    from blinkpy.helpers.pkce import generate_pkce_pair
+    from blinkpy import api
+
     try:
-        await blink.auth.startup()
-    except BlinkTwoFARequiredError:
-        errors.log_error("main.blink_2fa", "New 2FA code sent to email")
-        return web.json_response({"ok": True, "message": "New code sent to your email"})
+        code_verifier, code_challenge = generate_pkce_pair()
+
+        auth_success = await api.oauth_authorize_request(auth, auth.hardware_id, code_challenge)
+        if not auth_success:
+            return web.json_response({"ok": False, "error": "Authorization request failed"}, status=500)
+
+        csrf_token = await api.oauth_get_signin_page(auth)
+        if not csrf_token:
+            return web.json_response({"ok": False, "error": "Failed to get CSRF token"}, status=500)
+
+        email = auth.data.get("username")
+        password = auth.data.get("password")
+        login_result = await api.oauth_signin(auth, email, password, csrf_token)
+
+        if login_result == "2FA_REQUIRED":
+            auth._oauth_csrf_token = csrf_token
+            auth._oauth_code_verifier = code_verifier
+            errors.log_error("main.blink_2fa", "New 2FA code sent to email")
+            return web.json_response({"ok": True, "message": "New code sent to your email"})
+        elif login_result == "SUCCESS":
+            return web.json_response({"ok": False, "error": "Login succeeded unexpectedly (no 2FA needed)"}, status=400)
+        else:
+            return web.json_response({"ok": False, "error": f"Login returned: {login_result}"}, status=500)
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
         return web.json_response({"ok": False, "error": str(e)}, status=500)
-
-    return web.json_response({"ok": False, "error": "Login succeeded unexpectedly"}, status=400)
 
 
 def create_app():
