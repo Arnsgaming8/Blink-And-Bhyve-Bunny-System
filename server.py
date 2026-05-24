@@ -121,7 +121,7 @@ async function refresh() {
     const isWatering = e.source === "watering";
     const cls = isMotion ? "entry motion" : isWatering ? "entry watering" : "entry error";
     const hasTrace = e.traceback && e.traceback !== "None";
-    const encoded = encodeURIComponent(JSON.stringify(e));
+    const enc = v => encodeURIComponent(JSON.stringify(v)).replace(/'/g, "%27");
     return `<div class="${cls}">
       <div class="head">
         <span class="source">${esc(e.source)}</span>
@@ -129,10 +129,10 @@ async function refresh() {
       </div>
       <div class="msg">${esc(e.message)}</div>
       <div class="actions">
-        <button class="copy-btn" onclick="copyError(this, '${encoded}')">Copy</button>
+        <button class="copy-btn" onclick="copyError(this, '${enc(e)}')">Copy</button>
         ${hasTrace ? `<span class="trace-toggle" onclick="this.parentElement.nextElementSibling.classList.toggle('show')">Show traceback</span>` : ""}
       </div>
-      ${hasTrace ? `<div class="trace">${esc(e.traceback)}<br><button class="copy-btn" style="margin-top:6px" onclick="copyError(this, '${encodeURIComponent(JSON.stringify({traceback: e.traceback}))}')">Copy traceback</button></div>` : ""}
+      ${hasTrace ? `<div class="trace">${esc(e.traceback)}<br><button class="copy-btn" style="margin-top:6px" onclick="copyError(this, '${enc({traceback: e.traceback})}')">Copy traceback</button></div>` : ""}
     </div>`;
   }).join("");
 }
