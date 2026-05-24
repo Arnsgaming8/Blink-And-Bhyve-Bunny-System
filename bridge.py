@@ -270,12 +270,15 @@ async def main():
                 print(f"  2FA REQUIRED: {msg}")
                 errors.log_error("main.blink_2fa", msg)
                 state.blink_instance = blink
+                state.twofa_pending = False
                 print("  Waiting for 2FA code via dashboard...")
                 while True:
-                    await state.twofa_event.wait()
+                    if not state.twofa_pending:
+                        await asyncio.sleep(1)
+                        continue
                     pin = state.twofa_pin
                     state.twofa_pin = None
-                    state.twofa_event.clear()
+                    state.twofa_pending = False
                     print("  Submitting 2FA code...")
                     try:
                         success = await blink.send_2fa_code(pin)
@@ -287,12 +290,10 @@ async def main():
                         errors.log_error("main.blink_2fa_key", "2FA failed (wrong code or expired)")
                         print("  2FA failed. Check the code and try again.")
                         state.blink_instance = blink
-                        state.twofa_pin = None
                     except Exception as e:
                         errors.log_error("main.blink_2fa_key", str(e), exc_info=True)
                         print(f"  ERROR: 2FA submission failed: {e}")
                         state.blink_instance = blink
-                        state.twofa_pin = None
             except Exception as e:
                 errors.log_error("main.blink_setup", str(e), exc_info=True)
                 print(f"  ERROR: Blink setup failed: {e}")

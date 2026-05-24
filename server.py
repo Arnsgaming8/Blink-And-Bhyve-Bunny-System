@@ -229,7 +229,7 @@ async def handle_status(request):
 
 
 async def handle_2fa_status(request):
-    return web.json_response({"required": state.blink_instance is not None and not state.twofa_event.is_set()})
+    return web.json_response({"required": state.blink_instance is not None and not state.twofa_pending})
 
 
 async def handle_2fa_submit(request):
@@ -241,7 +241,7 @@ async def handle_2fa_submit(request):
         if state.blink_instance is None:
             return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
         state.twofa_pin = pin
-        state.twofa_event.set()
+        state.twofa_pending = True
         return web.json_response({"ok": True})
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=400)
