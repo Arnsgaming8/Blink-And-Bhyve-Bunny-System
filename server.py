@@ -301,17 +301,20 @@ async def handle_2fa_submit(request):
         pin = data.get("pin", "").strip()
         if not pin:
             return web.json_response({"ok": False, "error": "Missing pin"}, status=400)
-        if state.blink_instance is None:
+        blink = state.blink_instance or state.active_blink
+        if blink is None:
             return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
         state.twofa_pin = pin
         state.twofa_pending = True
+        if state.blink_instance is None:
+            state.blink_instance = blink
         return web.json_response({"ok": True})
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=400)
 
 
 async def handle_2fa_resend(request):
-    blink = state.blink_instance
+    blink = state.blink_instance or state.active_blink
     if blink is None:
         return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
 
