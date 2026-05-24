@@ -36,6 +36,7 @@ PAGE = r"""<!DOCTYPE html>
   .entry { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
            padding: 14px 16px; margin-bottom: 10px; }
   .entry.motion { border-left: 4px solid #d29922; }
+  .entry.watering { border-left: 4px solid #3fb950; }
   .entry.error { border-left: 4px solid #da3633; }
   .entry .head { display: flex; justify-content: space-between; align-items: center;
                  margin-bottom: 6px; font-size: 0.85rem; }
@@ -103,7 +104,8 @@ async function refresh() {
   }
   container.innerHTML = errors.map((e, i) => {
     const isMotion = e.source === "motion";
-    const cls = isMotion ? "entry motion" : "entry error";
+    const isWatering = e.source === "watering";
+    const cls = isMotion ? "entry motion" : isWatering ? "entry watering" : "entry error";
     const hasTrace = e.traceback && e.traceback !== "None";
     const encoded = encodeURIComponent(JSON.stringify(e));
     return `<div class="${cls}">

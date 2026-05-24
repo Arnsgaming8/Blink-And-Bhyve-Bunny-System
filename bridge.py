@@ -84,6 +84,8 @@ class BHyveClient:
         self.session = session
         self.token = None
         self.ws = None
+        self._ping_task = None
+        self._token_for_ws = None
         self.device_id = CONFIG["device_id"]
         self.zone = CONFIG["zone_number"]
 
@@ -108,10 +110,14 @@ class BHyveClient:
             raise RuntimeError(f"B-hyve login network error: {e}") from e
 
     async def connect_ws(self):
-        if self.ws and not self.ws.closed:
+        if self.ws and not self.ws.closed and self._token_for_ws == self.token:
             return
+        if self.ws and not self.ws.closed:
+            await self.ws.close()
+        self.ws = None
         headers = {"orbit-session-token": self.token}
         self.ws = await self.session.ws_connect(BHYVE_WS, headers=headers)
+        self._token_for_ws = self.token
         app_conn = {
             "event": "app_connection",
             "orbit_session_token": self.token,
@@ -142,7 +148,8 @@ class BHyveClient:
                 "orbit_session_token": self.token,
             }
             await self.ws.send_json(payload)
-            asyncio.ensure_future(self._ping_loop())
+            if self._ping_task is None or self._ping_task.done():
+                self._ping_task = asyncio.ensure_future(self._ping_loop())
         except Exception as e:
             raise RuntimeError(f"Start zone failed: {e}") from e
 
@@ -171,6 +178,7 @@ class BlinkWatcher:
 
     async def water_for_duration(self):
         secs = DURATION_SECONDS
+        zone = CONFIG['zone_number']
         try:
             await self.bhyve.login()
         except Exception as e:
@@ -181,28 +189,30 @@ class BlinkWatcher:
         minutes = max(secs / 60, 1 / 60)
         try:
             await self.bhyve.start_zone(minutes)
-            print(f"Zone {CONFIG['zone_number']} started")
+            msg = f"Zone {zone} watering started ({secs}s)"
+            print(f"  {msg}")
+            errors.log_error("watering", msg)
         except Exception as e:
             errors.log_error("water_for_duration.start_zone", str(e), exc_info=True)
-            print(f"  ERROR: Starting zone failed: {e}")
+            print(f"  ERROR: Starting zone {zone} failed: {e}")
             return
 
-        print(f"Zone {CONFIG['zone_number']} watering for {secs}s...")
         try:
             await asyncio.sleep(secs)
         except asyncio.CancelledError:
             print("  Watering interrupted")
-            errors.log_error("water_for_duration.sleep", "Watering sleep was cancelled")
+            errors.log_error("watering", f"Zone {zone} watering interrupted")
         except Exception as e:
             errors.log_error("water_for_duration.sleep", f"Sleep error: {e}", exc_info=True)
 
         try:
-            await self.bhyve.login()
             await self.bhyve.stop_zone()
-            print(f"Zone {CONFIG['zone_number']} stopped")
+            msg = f"Zone {zone} watering stopped"
+            print(f"  {msg}")
+            errors.log_error("watering", msg)
         except Exception as e:
             errors.log_error("water_for_duration.stop_zone", str(e), exc_info=True)
-            print(f"  ERROR: Stopping zone failed: {e}")
+            print(f"  ERROR: Stopping zone {zone} failed: {e}")
 
     async def check_motion(self):
         try:
