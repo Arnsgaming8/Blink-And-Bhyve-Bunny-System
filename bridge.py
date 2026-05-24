@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import aiohttp
@@ -255,8 +256,16 @@ class BlinkWatcher:
             if state.reauth_in_progress:
                 print("  Re-auth already in progress, skipping")
                 return
+            now = time.time()
+            if now - getattr(self, "_last_reauth_attempt", 0) < 30:
+                return
+            self._last_reauth_attempt = now
             try:
-                await self.blink.start()
+                ok = await self.blink.start()
+                if not ok:
+                    errors.log_error("check_motion.reauth", "Blink login failed (check credentials or Blink rate-limit)")
+                    print("  Blink start returned False (login failed)")
+                    return
             except BlinkTwoFARequiredError:
                 errors.log_error("check_motion.2fa_required", "Blink session expired — enter code on dashboard")
                 print("  Blink session expired, 2FA required")
