@@ -1,5 +1,7 @@
+import asyncio
 import os
 
+import aiohttp
 from aiohttp import web
 
 import errors
@@ -101,6 +103,7 @@ PAGE = r"""<!DOCTYPE html>
 <div class="toolbar">
   <span class="badge" id="count">0 errors</span>
   <button onclick="refresh()">Refresh</button>
+  <button onclick="waterZone()" id="waterBtn">Water Zone 6</button>
   <button class="danger" onclick="clearErrors()">Clear All</button>
 </div>
 <div id="entries"></div>
@@ -217,6 +220,25 @@ async function check2FA() {
     prevRequired = data.required;
   } catch(e) { /* ignore */ }
 }
+async function waterZone() {
+  const btn = document.getElementById("waterBtn");
+  btn.disabled = true;
+  btn.textContent = "Watering...";
+  try {
+    const r = await fetch("/api/water/start", { method: "POST" });
+    const data = await r.json();
+    if (data.ok) {
+      btn.textContent = "Watering started!";
+      setTimeout(() => { btn.textContent = "Water Zone 6"; btn.disabled = false; }, 2000);
+    } else {
+      btn.textContent = "Failed: " + (data.error || "unknown");
+      setTimeout(() => { btn.textContent = "Water Zone 6"; btn.disabled = false; }, 3000);
+    }
+  } catch(e) {
+    btn.textContent = "Network error";
+    setTimeout(() => { btn.textContent = "Water Zone 6"; btn.disabled = false; }, 3000);
+  }
+}
 setInterval(refresh, 5000);
 setInterval(check2FA, 5000);
 refresh();
@@ -316,6 +338,30 @@ async def handle_2fa_resend(request):
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
 
+async def _manual_water():
+    try:
+        from bridge import CONFIG, DURATION_SECONDS, BHyveClient
+        async with aiohttp.ClientSession() as session:
+            bhyve = BHyveClient(session)
+            bhyve.device_id = CONFIG["device_id"]
+            bhyve.zone = CONFIG["zone_number"]
+            await bhyve.login()
+            minutes = max(DURATION_SECONDS / 60, 1 / 60)
+            await bhyve.start_zone(minutes)
+            zone = CONFIG["zone_number"]
+            errors.log_error("watering", f"Manual zone {zone} started ({DURATION_SECONDS}s)")
+            await asyncio.sleep(DURATION_SECONDS)
+            await bhyve.stop_zone()
+            errors.log_error("watering", f"Manual zone {zone} stopped")
+    except Exception as e:
+        errors.log_error("manual_water", str(e), exc_info=True)
+
+
+async def handle_water_start(request):
+    asyncio.ensure_future(_manual_water())
+    return web.json_response({"ok": True, "message": "Watering started"})
+
+
 def create_app():
     app = web.Application()
     app.router.add_get("/", handle_index)
@@ -325,6 +371,7 @@ def create_app():
     app.router.add_get("/api/blink/2fa/status", handle_2fa_status)
     app.router.add_post("/api/blink/2fa", handle_2fa_submit)
     app.router.add_post("/api/blink/2fa/resend", handle_2fa_resend)
+    app.router.add_post("/api/water/start", handle_water_start)
     return app
 
 
