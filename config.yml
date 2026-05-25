@@ -8,7 +8,7 @@ device_id: "607220244f0c161d5a0d1648"
 zone_number: 6
 duration_seconds: 3
 
-poll_interval_seconds: 5
+poll_interval_seconds: 30
 
 cameras:
   - name: "Back yard"
