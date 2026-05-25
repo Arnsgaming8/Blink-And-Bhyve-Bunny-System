@@ -123,7 +123,7 @@ PAGE = r"""<!DOCTYPE html>
 </div>
 <div class="water-form">
   <label>Zone</label>
-  <input type="number" id="customZone" value="6" min="1" max="12" style="width:60px">
+  <input type="number" id="customZone" value="6" min="1" max="7" style="width:60px">
   <label>Duration</label>
   <input type="number" id="customDur" value="1" min="1" style="width:70px">
   <select id="customUnit">

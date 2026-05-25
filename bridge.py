@@ -295,63 +295,17 @@ class BlinkWatcher:
             print(f"  ERROR: Accessing camera failed: {e}")
             return
 
-        motion_now = camera.motion_detected
         record_now = camera.last_record
-        print(f"  Camera check: motion={motion_now}, last_record={'set' if record_now else None}")
+        print(f"  Camera check: last_record={'set' if record_now else None}")
 
-        motion_detected = bool(motion_now) or bool(record_now and record_now != self.last_record)
-
-        if not motion_detected:
-            try:
-                for name, sync_mod in self.blink.sync.items():
-                    url = f"{self.blink.urls.base_url}/network/{sync_mod.network_id}"
-                    resp = await self.blink.auth.session.get(url, headers={"User-Agent": "Blink/50.1"})
-                    if resp.status == 200:
-                        data = await resp.json()
-                        for cam_data in data.get("cameras", []):
-                            if cam_data.get("name") == CONFIG["camera_name"]:
-                                motion_detected = bool(cam_data.get("motion")) or cam_data.get("status") == "motion"
-                                if motion_detected:
-                                    print(f"  Motion via network status")
-                                break
-            except Exception as e:
-                print(f"  Network status check: {type(e).__name__}: {e}")
-
-        if not motion_detected:
-            try:
-                for name, sync_mod in self.blink.sync.items():
-                    url = f"{self.blink.urls.base_url}/events/network/{sync_mod.network_id}"
-                    resp = await self.blink.auth.session.get(url, headers={"User-Agent": "Blink/50.1"})
-                    if resp.status == 200:
-                        data = await resp.json()
-                        events = data if isinstance(data, list) else data.get("events", data.get("event_list", []))
-                        for ev in events:
-                            cam = ev.get("camera_name", "") or ev.get("device_name", "")
-                            if cam == CONFIG["camera_name"] and ev.get("type") in ("motion", "on"):
-                                motion_detected = True
-                                print(f"  Motion via sync events: {ev}")
-                                break
-            except Exception as e:
-                print(f"  Sync events check: {type(e).__name__}: {e}")
-
-        if motion_detected:
-            if record_now:
-                self.last_record = record_now
-                try:
-                    save_last_motion(record_now)
-                except Exception as e:
-                    errors.log_error("check_motion.save_record", str(e), exc_info=True)
-
+        if record_now and record_now != self.last_record:
+            self.last_record = record_now
+            save_last_motion(record_now)
             ts = datetime.now().time().isoformat(timespec="seconds")
-            msg = f"[{ts}] Motion detected on {CONFIG['camera_name']}"
+            msg = f"[{ts}] New clip detected on {CONFIG['camera_name']}"
             print(msg)
             errors.log_error("motion", msg)
-
-            try:
-                await self.water_for_duration()
-            except Exception as e:
-                errors.log_error("check_motion.water", str(e), exc_info=True)
-                print(f"  ERROR: Watering failed: {e}")
+            await self.water_for_duration()
 
     async def run(self):
         while True:
