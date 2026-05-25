@@ -6,6 +6,6 @@ bhyve_email: "ajusunaina@gmail.com"
 bhyve_password: "Sharmjug@1"
 device_id: "607220244f0c161d5a0d1648"
 zone_number: 6
-duration_seconds: 20
+duration_seconds: 10
 
-poll_interval_seconds: 30
+poll_interval_seconds: 10
