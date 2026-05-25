@@ -311,6 +311,11 @@ class BlinkWatcher:
                     print(msg)
                     errors.log_error("check_motion.camera", msg)
                     continue
+                if not camera.arm:
+                    await camera.async_arm(True)
+                    msg = f"Enabled motion detection on '{name}'"
+                    print(f"  {msg}")
+                    errors.log_error("arming", msg)
             except Exception as e:
                 errors.log_error("check_motion.camera", f"Error accessing '{name}': {e}", exc_info=True)
                 print(f"  ERROR: Accessing camera '{name}' failed: {e}")
