@@ -199,8 +199,10 @@ class BlinkWatcher:
         self.blink = blink
         self.bhyve = bhyve
         self.last_records = {}
+        self.last_watered = {}
         for cam in CAMERAS:
             self.last_records[cam["name"]] = None
+            self.last_watered[cam["zone"]] = 0
 
     async def water_for_duration(self, zone, secs):
         try:
@@ -314,14 +316,28 @@ class BlinkWatcher:
                 print(f"  ERROR: Accessing camera '{name}' failed: {e}")
                 continue
 
+            cooldown = max(POLL_INTERVAL, secs + 5)
+            if time.time() - self.last_watered.get(zone, 0) < cooldown:
+                continue
+
             record_now = camera.last_record
             prev = self.last_records.get(name)
-            print(f"  Camera '{name}' check: last_record={'set' if record_now else None}")
+            motion_now = camera.motion_detected
+            print(f"  Camera '{name}': last_record={'set' if record_now else None}, motion={motion_now}")
 
+            trigger = False
             if record_now and record_now != prev:
                 self.last_records[name] = record_now
+                trigger = True
+                reason = "new clip"
+            elif motion_now:
+                trigger = True
+                reason = "motion flag"
+
+            if trigger:
+                self.last_watered[zone] = time.time()
                 ts = datetime.now().time().isoformat(timespec="seconds")
-                msg = f"[{ts}] New clip on '{name}' → zone {zone} ({secs}s)"
+                msg = f"[{ts}] {reason} on '{name}' → zone {zone} ({secs}s)"
                 print(msg)
                 errors.log_error("motion", msg)
                 await self.water_for_duration(zone, secs)
@@ -446,6 +462,8 @@ async def main():
                 print(f"  ERROR: Blink setup failed: {e}")
                 return
 
+            available = list(blink.cameras.keys())
+            print(f"  Available cameras: {available}")
             watcher = BlinkWatcher(blink, bhyve)
             await watcher.run()
     except asyncio.CancelledError:
