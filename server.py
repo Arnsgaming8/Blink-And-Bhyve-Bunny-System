@@ -247,14 +247,20 @@ async function check2FA() {
     prevRequired = data.required;
   } catch(e) { /* ignore */ }
 }
+let pollCountdown = null;
 async function pollStatus() {
   try {
     const r = await fetch("/api/status");
     const data = await r.json();
     const el = document.getElementById("pollStatus");
-    if (data.last_poll) {
-      const t = new Date(data.last_poll).toLocaleTimeString();
-      el.textContent = "poll: " + t;
+    if (data.last_poll && data.poll_interval) {
+      const last = new Date(data.last_poll).getTime();
+      const end = last + data.poll_interval * 1000;
+      if (pollCountdown) clearInterval(pollCountdown);
+      pollCountdown = setInterval(() => {
+        const remaining = Math.max(0, Math.round((end - Date.now()) / 1000));
+        el.textContent = remaining > 0 ? "poll in " + remaining + "s" : "poll now!";
+      }, 500);
     } else {
       el.textContent = "poll: waiting...";
     }
@@ -304,10 +310,12 @@ async def handle_clear(request):
 
 
 async def handle_status(request):
+    from bridge import POLL_INTERVAL
     return web.json_response({
         "status": "running",
         "error_count": len(errors.get_errors(9999)),
         "last_poll": state.last_poll,
+        "poll_interval": POLL_INTERVAL,
     })
 
 
