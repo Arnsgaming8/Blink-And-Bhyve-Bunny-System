@@ -13,6 +13,114 @@ HOST = os.environ.get("ERROR_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT") or os.environ.get("ERROR_PORT") or "5000")
 
 
+SETUP_PAGE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BABBS — Setup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: #0d1117; color: #c9d1d9; padding: 24px; max-width: 500px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .sub { color: #8b949e; font-size: 0.9rem; margin-bottom: 24px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 1rem; color: #c9d1d9; margin-bottom: 12px; }
+  label { display: block; color: #8b949e; font-size: 0.85rem; margin-bottom: 4px; margin-top: 12px; }
+  .card label:first-child { margin-top: 0; }
+  input { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+          padding: 8px 10px; color: #c9d1d9; font-size: 0.9rem; }
+  input:focus { outline: none; border-color: #58a6ff; }
+  button.primary { background: #238636; border-color: #238636; color: #fff; border: none;
+                   padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+                   font-weight: 600; width: 100%; margin-top: 16px; }
+  button.primary:hover { background: #2ea043; }
+  .status { margin-top: 12px; font-size: 0.85rem; color: #3fb950; text-align: center; }
+  .status.err { color: #da3633; }
+  hr { border: none; border-top: 1px solid #21262d; margin: 20px 0; }
+  .hint { color: #8b949e; font-size: 0.78rem; margin-top: 4px; }
+</style>
+</head>
+<body>
+<h1>BABBS — First-Time Setup</h1>
+<p class="sub">Enter your Blink and B-hyve credentials to get started.</p>
+
+<div class="card">
+  <h2>Blink Camera Account</h2>
+  <label>Email</label>
+  <input type="email" id="blinkEmail" placeholder="you@example.com">
+  <label>Password</label>
+  <input type="password" id="blinkPassword" placeholder="Blink password">
+  <div class="hint">Leave blank if you don't use Blink (set DISABLE_BLINK_POLLING later).</div>
+</div>
+
+<div class="card">
+  <h2>B-hyve Sprinkler Account</h2>
+  <label>Email</label>
+  <input type="email" id="bhyveEmail" placeholder="you@example.com">
+  <label>Password</label>
+  <input type="password" id="bhyvePassword" placeholder="B-hyve password">
+</div>
+
+<div class="card">
+  <h2>Device</h2>
+  <label>Device ID</label>
+  <input type="text" id="deviceId" placeholder="607220244f0c161d5a0d1648">
+  <div class="hint">Found in the B-hyve app or by running list_devices.py.</div>
+</div>
+
+<div class="card" id="renderCard">
+  <h2>Render API Key</h2>
+  <label>Render API Key</label>
+  <input type="password" id="renderApiKey" placeholder="rnd_...">
+  <div class="hint">Required to save credentials as environment variables. Get it from Render dashboard &rarr; Account &rarr; API Keys.</div>
+</div>
+
+<button class="primary" onclick="saveSetup()">Save &amp; Restart</button>
+<div class="status" id="setupStatus"></div>
+
+<script>
+async function saveSetup() {
+  const btn = document.querySelector("button.primary");
+  const status = document.getElementById("setupStatus");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+  status.className = "status";
+  status.textContent = "";
+  try {
+    const r = await fetch("/api/setup", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        blink_email: document.getElementById("blinkEmail").value.trim(),
+        blink_password: document.getElementById("blinkPassword").value,
+        bhyve_email: document.getElementById("bhyveEmail").value.trim(),
+        bhyve_password: document.getElementById("bhyvePassword").value,
+        device_id: document.getElementById("deviceId").value.trim(),
+        render_api_key: document.getElementById("renderApiKey").value.trim(),
+      })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      status.textContent = data.message || "Saved! Restarting service...";
+      status.className = "status";
+      setTimeout(() => fetch("/api/shutdown", {method: "POST"}), 2000);
+    } else {
+      status.textContent = "Error: " + (data.error || "unknown");
+      status.className = "status err";
+    }
+  } catch(e) {
+    status.textContent = "Network error: " + e.message;
+    status.className = "status err";
+  }
+  btn.disabled = false;
+  btn.textContent = "Save &amp; Restart";
+}
+</script>
+</body>
+</html>"""
+
 PAGE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -562,6 +670,13 @@ async function deleteCamera(name) {
 
 
 async def handle_index(request):
+    if os.environ.get("SETUP_MODE") == "1":
+        has_render_key = bool(os.environ.get("RENDER_API_KEY"))
+        page = SETUP_PAGE.replace(
+            'id="renderCard"',
+            f'id="renderCard" style="display:{ "none" if has_render_key else "block" }"'
+        )
+        return web.Response(text=page, content_type="text/html")
     return web.Response(text=PAGE, content_type="text/html")
 
 
@@ -745,6 +860,93 @@ async def handle_water_stop(request):
             _manual_water_task.cancel()
         return web.json_response({"ok": True, "message": "Watering cancelled"})
     return web.json_response({"ok": False, "error": "No active watering"}, status=400)
+
+
+async def handle_setup(request):
+    import json, yaml
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+    else:
+        cfg = {}
+
+    blink_email = body.get("blink_email") or ""
+    blink_password = body.get("blink_password") or ""
+    bhyve_email = body.get("bhyve_email") or ""
+    bhyve_password = body.get("bhyve_password") or ""
+    device_id = body.get("device_id") or ""
+    render_api_key = body.get("render_api_key") or ""
+
+    if not bhyve_email or not bhyve_password or not device_id:
+        return web.json_response({"ok": False, "error": "B-hyve email, password, and Device ID are required"}, status=400)
+
+    cfg["bhyve_email"] = bhyve_email
+    cfg["bhyve_password"] = bhyve_password
+    cfg["device_id"] = device_id
+    cfg["render_api_key"] = render_api_key
+
+    if blink_email and blink_password:
+        cfg["blink_email"] = blink_email
+        cfg["blink_password"] = blink_password
+        if "DISABLE_BLINK_POLLING" in os.environ:
+            os.environ.pop("DISABLE_BLINK_POLLING", None)
+        cfg.pop("disable_blink_polling", None)
+    else:
+        os.environ["DISABLE_BLINK_POLLING"] = "1"
+        cfg["disable_blink_polling"] = True
+
+    if not cfg.get("cameras"):
+        cfg["cameras"] = [{"name": "Camera 1", "zone": 1, "duration_seconds": 60, "arm": True, "no_water": False}]
+
+    try:
+        with open(config_path, "w") as f:
+            yaml.dump(cfg, f, default_flow_style=False)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": f"Failed to write config: {e}"}, status=500)
+
+    has_render_key = bool(os.environ.get("RENDER_API_KEY") or render_api_key)
+    service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
+
+    if has_render_key and service_id:
+        if render_api_key and not os.environ.get("RENDER_API_KEY"):
+            os.environ["RENDER_API_KEY"] = render_api_key
+        api_key = os.environ.get("RENDER_API_KEY") or render_api_key
+        try:
+            async with aiohttp.ClientSession() as session:
+                updates = {}
+                for env_key, val in [
+                    ("BLINK_EMAIL", blink_email),
+                    ("BLINK_PASSWORD", blink_password),
+                    ("BHYVE_EMAIL", bhyve_email),
+                    ("BHYVE_PASSWORD", bhyve_password),
+                    ("DEVICE_ID", device_id),
+                ]:
+                    if val:
+                        updates[env_key] = val
+                if body.get("disable_blink") or (not blink_email and not blink_password):
+                    updates["DISABLE_BLINK_POLLING"] = "1"
+                for env_key, val in updates.items():
+                    async with session.put(
+                        f"https://api.render.com/v1/services/{service_id}/env-vars/{env_key}",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        json={"key": env_key, "value": val},
+                    ) as resp:
+                        if resp.status not in (200, 201):
+                            text = await resp.text()
+                            errors.log_error("setup.render_api", f"Render API {resp.status} for {env_key}: {text[:200]}")
+        except Exception as e:
+            errors.log_error("setup.render_api", str(e), exc_info=True)
+            return web.json_response({"ok": True, "message": "Saved to config.yml but failed to update Render env vars. Restart manually from Render dashboard."})
+
+        return web.json_response({"ok": True, "message": "Credentials saved and synced to Render. Restarting service..."})
+
+    return web.json_response({"ok": True, "message": "Saved to config.yml. Set RENDER_API_KEY env var for persistence, then restart from Render dashboard."})
 
 
 async def handle_shutdown(request):
@@ -988,6 +1190,7 @@ def create_app():
     app.router.add_get("/api/config", handle_config)
     app.router.add_post("/api/water/start", handle_water_start)
     app.router.add_post("/api/water/stop", handle_water_stop)
+    app.router.add_post("/api/setup", handle_setup)
     app.router.add_post("/api/shutdown", handle_shutdown)
     app.router.add_post("/api/esp32/trigger", handle_esp32_trigger)
     app.router.add_get("/api/cameras", handle_cameras)

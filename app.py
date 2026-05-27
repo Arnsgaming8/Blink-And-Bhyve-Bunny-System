@@ -27,8 +27,8 @@ def generate_config():
     required = [v for v in REQUIRED if not (blink_disabled and v.startswith("BLINK_"))]
     missing = [v for v in required if not os.environ.get(v)]
     if missing:
-        print(f"Missing required env vars: {', '.join(missing)}")
-        sys.exit(1)
+        print(f"Missing credentials. Starting in setup mode. Set these env vars: {', '.join(missing)}")
+        os.environ["SETUP_MODE"] = "1"
 
     if os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH) as f:
@@ -76,6 +76,9 @@ def generate_config():
 
 
 async def bridge_background_task(app):
+    if os.environ.get("SETUP_MODE") == "1":
+        print("Setup mode — bridge not started")
+        return
     from bridge import main as bridge_main
 
     async def _run_bridge():
