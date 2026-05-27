@@ -353,7 +353,9 @@ async function loadCameras() {
         <span class="slider"></span>
       </label>
       <span class="cam-name">${esc(c.name)}</span>
-      <span class="cam-zone">zone ${c.zone}</span>
+      <span class="cam-zone">zone <input type="number" value="${c.zone}" min="1" max="12"
+               style="width:38px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;padding:2px 4px;font-size:0.8rem"
+               onchange="setZone('${esc(c.name)}', this.value)"></span>
     </div>`).join("");
   } catch(e) { /* ignore */ }
 }
@@ -368,6 +370,17 @@ async function armCamera(name, armed, checkbox) {
     if (!r.ok) checkbox.checked = !armed;
   } catch(e) { checkbox.checked = !armed; }
   checkbox.disabled = false;
+}
+async function setZone(name, zone) {
+  zone = parseInt(zone);
+  if (!zone || zone < 1) return;
+  try {
+    await fetch("/api/camera/" + encodeURIComponent(name) + "/zone", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({zone})
+    });
+  } catch(e) { /* ignore */ }
 }
 </script>
 </body>
@@ -577,6 +590,48 @@ async def handle_camera_arm(request):
     return web.json_response({"ok": True, "name": name, "armed": armed})
 
 
+async def handle_camera_zone(request):
+    import yaml
+    from bridge import CAMERAS, CONFIG
+    name = request.match_info.get("name", "")
+    try:
+        body = await request.json()
+        zone = int(body.get("zone", 0))
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+    if zone < 1 or zone > 12:
+        return web.json_response({"ok": False, "error": "zone must be 1-12"}, status=400)
+
+    updated = False
+    for cam in CAMERAS:
+        if cam["name"] == name:
+            cam["zone"] = zone
+            updated = True
+            break
+    if not updated:
+        return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
+    try:
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+        if "cameras" in cfg:
+            for c in cfg["cameras"]:
+                if c["name"] == name:
+                    c["zone"] = zone
+                    break
+        else:
+            cfg["zone_number"] = zone
+        with open(config_path, "w") as f:
+            yaml.dump(cfg, f, default_flow_style=False)
+    except Exception as e:
+        errors.log_error("camera_zone.save", str(e), exc_info=True)
+        return web.json_response({"ok": False, "error": "config save failed"}, status=500)
+
+    errors.log_error("config", f"Zone for '{name}' set to {zone}")
+    return web.json_response({"ok": True, "name": name, "zone": zone})
+
+
 def create_app():
     app = web.Application()
     app.router.add_get("/", handle_index)
@@ -591,6 +646,7 @@ def create_app():
     app.router.add_post("/api/esp32/trigger", handle_esp32_trigger)
     app.router.add_get("/api/cameras", handle_cameras)
     app.router.add_post("/api/camera/{name}/arm", handle_camera_arm)
+    app.router.add_post("/api/camera/{name}/zone", handle_camera_zone)
     return app
 
 
