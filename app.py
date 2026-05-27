@@ -16,6 +16,7 @@ ENV_MAP = {
     "ZONE_NUMBER": "zone_number",
     "DURATION_SECONDS": "duration_seconds",
     "POLL_INTERVAL_SECONDS": "poll_interval_seconds",
+    "RENDER_API_KEY": "render_api_key",
 }
 
 REQUIRED = ["BLINK_EMAIL", "BLINK_PASSWORD", "BHYVE_EMAIL", "BHYVE_PASSWORD", "DEVICE_ID"]
@@ -56,6 +57,11 @@ def generate_config():
     with open(CONFIG_PATH, "w") as f:
         yaml.dump(config, f, default_flow_style=False)
     print(f"Config written to {CONFIG_PATH}")
+
+    for env_key, config_key in ENV_MAP.items():
+        val = config.get(config_key)
+        if val is not None:
+            os.environ.setdefault(env_key, str(val))
 
 
 async def bridge_background_task(app):

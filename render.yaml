@@ -11,17 +11,15 @@ services:
         sync: false
       - key: BLINK_PASSWORD
         sync: false
-      - key: CAMERA_NAME
-        value: "Patio"
       - key: BHYVE_EMAIL
         sync: false
       - key: BHYVE_PASSWORD
         sync: false
       - key: DEVICE_ID
         sync: false
-      - key: ZONE_NUMBER
-        value: "1"
-      - key: DURATION_SECONDS
-        value: "20"
+      - key: CAMERAS
+        value: '[{"name":"Front Door","zone":1,"duration_seconds":20},{"name":"Back yard","zone":2,"duration_seconds":30}]'
       - key: POLL_INTERVAL_SECONDS
         value: "30"
+      - key: RENDER_API_KEY
+        sync: false

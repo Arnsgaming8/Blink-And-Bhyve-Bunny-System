@@ -116,8 +116,28 @@ PAGE = r"""<!DOCTYPE html>
   .sidebar .close:hover { color: #f85149; }
   .sidebar .cam-item { display: flex; align-items: center; gap: 10px;
                        padding: 10px 0; border-bottom: 1px solid #21262d; }
-  .sidebar .cam-name { flex: 1; font-size: 0.9rem; }
-  .sidebar .cam-zone { color: #8b949e; font-size: 0.8rem; }
+  .sidebar .cam-name { flex: 1; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar .cam-zone { color: #8b949e; font-size: 0.8rem; white-space: nowrap; }
+  .sidebar .pencil { background: none; border: none; color: #8b949e; cursor: pointer;
+                     font-size: 0.85rem; padding: 0 2px; flex-shrink: 0; }
+  .sidebar .pencil:hover { color: #58a6ff; }
+  .sidebar .add-btn { width: 100%; margin-top: 12px; text-align: center; }
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                   background: rgba(0,0,0,0.6); z-index: 100; display: none; }
+  .modal-overlay.show { display: block; }
+  .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+           background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+           padding: 24px; z-index: 101; width: 320px; max-width: 90vw; display: none; }
+  .modal.show { display: block; }
+  .modal h3 { margin-bottom: 16px; }
+  .modal label { display: block; color: #8b949e; font-size: 0.85rem; margin-bottom: 4px; margin-top: 12px; }
+  .modal input { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+                 padding: 8px 10px; color: #c9d1d9; font-size: 0.9rem; }
+  .modal input:focus { outline: none; border-color: #58a6ff; }
+  .modal .modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+  .modal .modal-actions button { flex: 1; }
+  .modal .del-btn { background: #21262d; border-color: #da3633; color: #f85149; }
+  .modal .del-btn:hover { background: #da3633; color: #fff; }
   .switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
   .switch input { opacity: 0; width: 0; height: 0; }
   .switch .slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -141,6 +161,24 @@ PAGE = r"""<!DOCTYPE html>
   <div id="camList"></div>
 </div>
 
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
+<div class="modal" id="modalBox">
+  <h3 id="modalTitle">Edit Camera</h3>
+  <form id="modalForm">
+    <label for="modalName">Camera Name</label>
+    <input type="text" id="modalName" required>
+    <label for="modalZone">Zone</label>
+    <input type="number" id="modalZone" min="1" max="12">
+    <label for="modalDuration">Duration (seconds)</label>
+    <input type="number" id="modalDuration" min="1">
+    <div class="modal-actions">
+      <button type="submit" class="primary">Save</button>
+      <button type="button" onclick="closeModal()">Cancel</button>
+      <button type="button" class="del-btn" id="modalDelete">Delete</button>
+    </div>
+  </form>
+</div>
+
 <div class="twofa-banner" id="twofaBanner">
   <h3>&#9888; Two-Factor Authentication Required</h3>
   <p>A verification code has been sent to your Blink account email. Enter it below to complete sign-in.</p>
@@ -153,7 +191,7 @@ PAGE = r"""<!DOCTYPE html>
 </div>
 
 <div class="toolbar">
-  <button class="sidebar-btn" onclick="toggleSidebar()">&#9776;</button>
+  <button class="sidebar-btn" onclick="toggleSidebar()">&#9776; Cameras</button>
   <span class="badge" id="count">0 errors</span>
   <span class="badge" id="pollStatus" style="font-size:0.8rem">poll: --</span>
   <button onclick="refresh()">Refresh</button>
@@ -352,11 +390,10 @@ async function loadCameras() {
                onchange="armCamera('${esc(c.name)}', this.checked, this)">
         <span class="slider"></span>
       </label>
-      <span class="cam-name">${esc(c.name)}</span>
-      <span class="cam-zone">zone <input type="number" value="${c.zone}" min="1" max="12"
-               style="width:38px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;padding:2px 4px;font-size:0.8rem"
-               onchange="setZone('${esc(c.name)}', this.value)"></span>
-    </div>`).join("");
+      <span class="cam-name" title="Click to edit">${esc(c.name)}</span>
+      <span class="cam-zone">zone ${c.zone} &middot; ${c.duration}s</span>
+      <button class="pencil" onclick="openEditModal('${esc(c.name)}')" title="Edit camera">&#9998;</button>
+    </div>`).join("") + '<button class="add-btn primary" onclick="openAddModal()">+ Add Camera</button>';
   } catch(e) { /* ignore */ }
 }
 async function armCamera(name, armed, checkbox) {
@@ -371,16 +408,75 @@ async function armCamera(name, armed, checkbox) {
   } catch(e) { checkbox.checked = !armed; }
   checkbox.disabled = false;
 }
-async function setZone(name, zone) {
-  zone = parseInt(zone);
-  if (!zone || zone < 1) return;
-  try {
-    await fetch("/api/camera/" + encodeURIComponent(name) + "/zone", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({zone})
-    });
-  } catch(e) { /* ignore */ }
+async function openEditModal(name) {
+  document.getElementById("modalTitle").textContent = "Edit Camera";
+  document.getElementById("modalDelete").style.display = "";
+  const r = await fetch("/api/cameras");
+  const data = await r.json();
+  const c = data.cameras.find(x => x.name === name);
+  if (!c) return;
+  document.getElementById("modalName").value = c.name;
+  document.getElementById("modalZone").value = c.zone;
+  document.getElementById("modalDuration").value = c.duration;
+  document.getElementById("modalForm").onsubmit = (e) => {
+    e.preventDefault();
+    saveCamera(c.name);
+  };
+  document.getElementById("modalDelete").onclick = () => deleteCamera(c.name);
+  openModal();
+}
+function openAddModal() {
+  document.getElementById("modalTitle").textContent = "Add Camera";
+  document.getElementById("modalDelete").style.display = "none";
+  document.getElementById("modalName").value = "";
+  document.getElementById("modalZone").value = 1;
+  document.getElementById("modalDuration").value = 3;
+  document.getElementById("modalForm").onsubmit = (e) => {
+    e.preventDefault();
+    saveCamera(null);
+  };
+  openModal();
+}
+function openModal() {
+  document.getElementById("modalOverlay").classList.add("show");
+  document.getElementById("modalBox").classList.add("show");
+}
+function closeModal() {
+  document.getElementById("modalOverlay").classList.remove("show");
+  document.getElementById("modalBox").classList.remove("show");
+}
+async function saveCamera(oldName) {
+  const name = document.getElementById("modalName").value.trim();
+  const zone = parseInt(document.getElementById("modalZone").value) || 1;
+  const duration = parseInt(document.getElementById("modalDuration").value) || 3;
+  if (!name) return;
+  let url, method, body;
+  if (oldName) {
+    url = "/api/camera/" + encodeURIComponent(oldName);
+    method = "PUT";
+    body = {name, zone, duration};
+  } else {
+    url = "/api/cameras";
+    method = "POST";
+    body = {name, zone, duration};
+  }
+  const r = await fetch(url, {
+    method,
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body)
+  });
+  if (r.ok) {
+    closeModal();
+    loadCameras();
+  }
+}
+async function deleteCamera(name) {
+  if (!confirm('Remove camera "' + name + '"?')) return;
+  const r = await fetch("/api/camera/" + encodeURIComponent(name), {method: "DELETE"});
+  if (r.ok) {
+    closeModal();
+    loadCameras();
+  }
 }
 </script>
 </body>
@@ -553,6 +649,50 @@ async def handle_esp32_trigger(request):
     return web.json_response({"ok": True, "zone": zone, "duration": duration})
 
 
+def _cameras_json():
+    from bridge import CAMERAS
+    return json.dumps([{"name": c["name"], "zone": c["zone"], "duration_seconds": c.get("duration_seconds", 3)} for c in CAMERAS])
+
+
+async def _sync_cameras_config(event_label):
+    import yaml
+    from bridge import CAMERAS, CONFIG
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
+    try:
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+        cfg["cameras"] = list(CAMERAS)
+        with open(config_path, "w") as f:
+            yaml.dump(cfg, f, default_flow_style=False)
+    except Exception as e:
+        errors.log_error(f"{event_label}.save_yml", str(e), exc_info=True)
+
+    api_key = os.environ.get("RENDER_API_KEY")
+    if api_key:
+        import aiohttp
+        service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
+        if not service_id:
+            errors.log_error(f"{event_label}.render_api", "RENDER_SERVICE_ID not found")
+            return
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.patch(
+                    f"https://api.render.com/v1/services/{service_id}/env-vars",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={"envVars": [{"key": "CAMERAS", "value": _cameras_json()}]},
+                ) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        errors.log_error(f"{event_label}.render_api", f"Render API {resp.status}: {text[:200]}")
+                    else:
+                        errors.log_error(event_label, "CAMERAS env var updated on Render")
+        except Exception as e:
+            errors.log_error(f"{event_label}.render_api", str(e), exc_info=True)
+
+    errors.log_error(event_label, "Cameras config synced")
+
+
 async def handle_cameras(request):
     from bridge import CAMERAS
     blink = state.active_blink
@@ -567,6 +707,7 @@ async def handle_cameras(request):
         result.append({
             "name": cam["name"],
             "zone": cam["zone"],
+            "duration": cam.get("duration_seconds", 3),
             "armed": armed,
         })
     return web.json_response({"connected": connected, "cameras": result})
@@ -591,8 +732,7 @@ async def handle_camera_arm(request):
 
 
 async def handle_camera_zone(request):
-    import yaml
-    from bridge import CAMERAS, CONFIG
+    from bridge import CAMERAS
     name = request.match_info.get("name", "")
     try:
         body = await request.json()
@@ -602,34 +742,67 @@ async def handle_camera_zone(request):
     if zone < 1 or zone > 12:
         return web.json_response({"ok": False, "error": "zone must be 1-12"}, status=400)
 
-    updated = False
     for cam in CAMERAS:
         if cam["name"] == name:
             cam["zone"] = zone
-            updated = True
-            break
-    if not updated:
+            await _sync_cameras_config("camera_zone")
+            return web.json_response({"ok": True, "name": name, "zone": zone})
+
+    return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
+
+
+async def handle_camera_update(request):
+    from bridge import CAMERAS
+    name = request.match_info.get("name", "")
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+
+    idx = next((i for i, c in enumerate(CAMERAS) if c["name"] == name), None)
+    if idx is None:
         return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
 
-    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
-    try:
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f) or {}
-        if "cameras" in cfg:
-            for c in cfg["cameras"]:
-                if c["name"] == name:
-                    c["zone"] = zone
-                    break
-        else:
-            cfg["zone_number"] = zone
-        with open(config_path, "w") as f:
-            yaml.dump(cfg, f, default_flow_style=False)
-    except Exception as e:
-        errors.log_error("camera_zone.save", str(e), exc_info=True)
-        return web.json_response({"ok": False, "error": "config save failed"}, status=500)
+    CAMERAS[idx]["name"] = body.get("name", name)
+    if body.get("zone") is not None:
+        CAMERAS[idx]["zone"] = int(body["zone"])
+    if body.get("duration") is not None:
+        CAMERAS[idx]["duration_seconds"] = int(body["duration"])
 
-    errors.log_error("config", f"Zone for '{name}' set to {zone}")
-    return web.json_response({"ok": True, "name": name, "zone": zone})
+    await _sync_cameras_config("camera_update")
+    return web.json_response({"ok": True})
+
+
+async def handle_camera_create(request):
+    from bridge import CAMERAS
+    try:
+        body = await request.json()
+        name = body.get("name", "").strip()
+        zone = int(body.get("zone", 1))
+        duration = int(body.get("duration", 3))
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+    if not name:
+        return web.json_response({"ok": False, "error": "name required"}, status=400)
+    if any(c["name"] == name for c in CAMERAS):
+        return web.json_response({"ok": False, "error": f"Camera '{name}' already exists"}, status=409)
+
+    new_cam = {"name": name, "zone": zone, "duration_seconds": duration}
+    CAMERAS.append(new_cam)
+    await _sync_cameras_config("camera_create")
+    return web.json_response({"ok": True, "camera": new_cam})
+
+
+async def handle_camera_delete(request):
+    from bridge import CAMERAS
+    name = request.match_info.get("name", "")
+    idx = next((i for i, c in enumerate(CAMERAS) if c["name"] == name), None)
+    if idx is None:
+        return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
+
+    CAMERAS.pop(idx)
+    await _sync_cameras_config("camera_delete")
+    return web.json_response({"ok": True})
 
 
 def create_app():
@@ -645,6 +818,9 @@ def create_app():
     app.router.add_post("/api/water/start", handle_water_start)
     app.router.add_post("/api/esp32/trigger", handle_esp32_trigger)
     app.router.add_get("/api/cameras", handle_cameras)
+    app.router.add_post("/api/cameras", handle_camera_create)
+    app.router.add_put("/api/camera/{name}", handle_camera_update)
+    app.router.add_delete("/api/camera/{name}", handle_camera_delete)
     app.router.add_post("/api/camera/{name}/arm", handle_camera_arm)
     app.router.add_post("/api/camera/{name}/zone", handle_camera_zone)
     return app

@@ -9,6 +9,7 @@ zone_number: 1
 duration_seconds: 20
 
 poll_interval_seconds: 30
+render_api_key: "rnd_<your-render-api-key>"
 
 cameras:
   - name: "Front Door"
