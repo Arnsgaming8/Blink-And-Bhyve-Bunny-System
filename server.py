@@ -685,10 +685,10 @@ async def _sync_cameras_config(event_label):
             return
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.patch(
-                    f"https://api.render.com/v1/services/{service_id}/env-vars",
+                async with session.put(
+                    f"https://api.render.com/v1/services/{service_id}/env-vars/CAMERAS",
                     headers={"Authorization": f"Bearer {api_key}"},
-                    json={"envVars": [{"key": "CAMERAS", "value": _cameras_json()}]},
+                    json={"key": "CAMERAS", "value": _cameras_json()},
                 ) as resp:
                     if resp.status != 200:
                         text = await resp.text()
