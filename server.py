@@ -382,8 +382,14 @@ async function shutdownServer() {
   document.querySelectorAll(".toolbar button").forEach(b => b.disabled = true);
   try {
     await fetch("/api/shutdown", {method: "POST"});
-  } catch(e) { /* server is down, expected */ }
-  setTimeout(() => location.reload(), 3000);
+  } catch(e) { /* ok */ }
+  document.getElementById("customStatus").textContent = "Server suspended. Reloading...";
+  while (true) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      await fetch("/api/errors", {method: "GET"});
+    } catch(e) { location.reload(); break; }
+  }
 }
 
 async function customWater() {
