@@ -376,8 +376,8 @@ function toggleSidebar() {
   const open = s.classList.toggle("open");
   o.classList.toggle("show", open);
 }
-async const armPending = {};
-function loadCameras() {
+const armPending = {};
+async function loadCameras() {
   try {
     const r = await fetch("/api/cameras");
     const data = await r.json();
