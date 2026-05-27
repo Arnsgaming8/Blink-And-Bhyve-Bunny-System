@@ -202,7 +202,7 @@ PAGE = r"""<!DOCTYPE html>
   <button class="sidebar-btn" onclick="toggleSidebar()">&#9776; Cameras</button>
   <span class="badge" id="count">0 errors</span>
   <span class="badge" id="pollStatus" style="font-size:0.8rem">poll: --</span>
-  <button onclick="refresh()">Refresh</button>
+  <button id="refreshBtn" onclick="manualRefresh()">Refresh</button>
   <span class="badge" id="zoneBadge" style="display:none"></span>
   <button class="danger" onclick="clearErrors()">Clear All</button>
 </div>
@@ -222,6 +222,13 @@ PAGE = r"""<!DOCTYPE html>
 <div id="entries"></div>
 
 <script>
+async function manualRefresh() {
+  const btn = document.getElementById("refreshBtn");
+  btn.textContent = "Refreshed!";
+  btn.disabled = true;
+  await refresh();
+  setTimeout(() => { btn.textContent = "Refresh"; btn.disabled = false; }, 2000);
+}
 async function refresh() {
   let r, errors;
   try {
