@@ -420,7 +420,7 @@ async function customWater() {
     const data = await r.json();
     if (data.cancelled) { clearTimeout(showCancelTimer); status.textContent = "Cancelled"; return; }
     status.textContent = data.ok ? `Zone ${zone} started for ${dur}${unit}` : "Error: " + (data.error || "unknown");
-    waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, 5000);
+    waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, (data.duration_seconds + 3) * 1000);
   } catch(e) { clearTimeout(showCancelTimer); status.textContent = "Network error"; waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, 5000); }
 }
 var pollInterval = setInterval(refresh, 5000);
@@ -728,7 +728,7 @@ async def handle_water_start(request):
         return web.json_response({"ok": True, "zone": zone, "cancelled": True})
 
     _manual_water_task = asyncio.ensure_future(_manual_water(zone, duration_seconds))
-    return web.json_response({"ok": True, "zone": zone})
+    return web.json_response({"ok": True, "zone": zone, "duration_seconds": duration_seconds})
 
 
 async def handle_water_stop(request):
