@@ -690,7 +690,6 @@ async def _manual_water(zone=None, duration_seconds=None):
         _manual_water_task = None
         _water_pending = False
         _water_cancel_requested = False
-        errors.log_error("watering", "Manual water task cleanup done")
 
 
 async def handle_config(request):
