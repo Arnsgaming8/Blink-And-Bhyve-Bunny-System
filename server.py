@@ -171,6 +171,10 @@ PAGE = r"""<!DOCTYPE html>
     <input type="number" id="modalZone" min="1" max="12">
     <label for="modalDuration">Duration (seconds)</label>
     <input type="number" id="modalDuration" min="1">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;color:#f85149;font-size:0.85rem">
+      <input type="checkbox" id="modalNoWater" style="width:auto">
+      Do not start sprinklers
+    </label>
     <div class="modal-actions">
       <button type="submit" class="primary">Save</button>
       <button type="button" onclick="closeModal()">Cancel</button>
@@ -394,7 +398,7 @@ async function loadCameras() {
         <span class="slider"></span>
       </label>
       <span class="cam-name" title="Click to edit">${esc(c.name)}</span>
-      <span class="cam-zone">zone ${c.zone} &middot; ${c.duration}s</span>
+      <span class="cam-zone">${c.no_water ? '<span style="color:#f85149">No Watering</span>' : 'zone ' + c.zone + ' &middot; ' + c.duration + 's'}</span>
       <button class="pencil" onclick="openEditModal('${esc(c.name)}')" title="Edit camera">&#9998;</button>
     </div>`;
     }).join("") + '<button class="add-btn primary" onclick="openAddModal()">+ Add Camera</button>';
@@ -424,6 +428,7 @@ async function openEditModal(name) {
   document.getElementById("modalName").value = c.name;
   document.getElementById("modalZone").value = c.zone;
   document.getElementById("modalDuration").value = c.duration;
+  document.getElementById("modalNoWater").checked = c.no_water;
   document.getElementById("modalForm").onsubmit = (e) => {
     e.preventDefault();
     saveCamera(c.name);
@@ -437,6 +442,7 @@ function openAddModal() {
   document.getElementById("modalName").value = "";
   document.getElementById("modalZone").value = 1;
   document.getElementById("modalDuration").value = 3;
+  document.getElementById("modalNoWater").checked = false;
   document.getElementById("modalForm").onsubmit = (e) => {
     e.preventDefault();
     saveCamera(null);
@@ -455,16 +461,17 @@ async function saveCamera(oldName) {
   const name = document.getElementById("modalName").value.trim();
   const zone = parseInt(document.getElementById("modalZone").value) || 1;
   const duration = parseInt(document.getElementById("modalDuration").value) || 3;
+  const no_water = document.getElementById("modalNoWater").checked;
   if (!name) return;
   let url, method, body;
   if (oldName) {
     url = "/api/camera/" + encodeURIComponent(oldName);
     method = "PUT";
-    body = {name, zone, duration};
+    body = {name, zone, duration, no_water};
   } else {
     url = "/api/cameras";
     method = "POST";
-    body = {name, zone, duration};
+    body = {name, zone, duration, no_water};
   }
   const r = await fetch(url, {
     method,
@@ -659,7 +666,8 @@ def _cameras_json():
     from bridge import CAMERAS
     return json.dumps([{"name": c["name"], "zone": c["zone"],
                         "duration_seconds": c.get("duration_seconds", 3),
-                        "arm": c.get("arm", True)} for c in CAMERAS])
+                        "arm": c.get("arm", True),
+                        "no_water": c.get("no_water", False)} for c in CAMERAS])
 
 
 async def _sync_cameras_config(event_label):
@@ -718,6 +726,7 @@ async def handle_cameras(request):
             "zone": cam["zone"],
             "duration": cam.get("duration_seconds", 3),
             "armed": armed,
+            "no_water": cam.get("no_water", False),
         })
     return web.json_response({"connected": connected, "cameras": result})
 
@@ -782,6 +791,8 @@ async def handle_camera_update(request):
         CAMERAS[idx]["zone"] = int(body["zone"])
     if body.get("duration") is not None:
         CAMERAS[idx]["duration_seconds"] = int(body["duration"])
+    if body.get("no_water") is not None:
+        CAMERAS[idx]["no_water"] = bool(body["no_water"])
 
     await _sync_cameras_config("camera_update")
     return web.json_response({"ok": True})
@@ -794,6 +805,7 @@ async def handle_camera_create(request):
         name = body.get("name", "").strip()
         zone = int(body.get("zone", 1))
         duration = int(body.get("duration", 3))
+        no_water = bool(body.get("no_water", False))
     except Exception:
         return web.json_response({"ok": False, "error": "bad request"}, status=400)
     if not name:
@@ -801,7 +813,7 @@ async def handle_camera_create(request):
     if any(c["name"] == name for c in CAMERAS):
         return web.json_response({"ok": False, "error": f"Camera '{name}' already exists"}, status=409)
 
-    new_cam = {"name": name, "zone": zone, "duration_seconds": duration, "arm": True}
+    new_cam = {"name": name, "zone": zone, "duration_seconds": duration, "arm": True, "no_water": no_water}
     CAMERAS.append(new_cam)
     await _sync_cameras_config("camera_create")
     return web.json_response({"ok": True, "camera": new_cam})

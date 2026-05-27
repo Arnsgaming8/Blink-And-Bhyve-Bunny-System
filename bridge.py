@@ -67,6 +67,7 @@ if raw_cameras:
             "zone": int(c["zone"]),
             "duration_seconds": int(c.get("duration_seconds", DURATION_SECONDS)),
             "arm": c.get("arm", True),
+            "no_water": c.get("no_water", False),
         })
 else:
     CAMERAS = [{
@@ -74,6 +75,7 @@ else:
         "zone": int(CONFIG.get("zone_number", 1)),
         "duration_seconds": DURATION_SECONDS,
         "arm": True,
+        "no_water": False,
     }]
 
 
@@ -327,6 +329,10 @@ class BlinkWatcher:
 
             if not armed:
                 print(f"  Skipping '{name}' — camera is disarmed")
+                continue
+
+            if cam.get("no_water", False):
+                print(f"  Motion on '{name}' — no_water enabled, skipping sprinklers")
                 continue
 
             cooldown = max(POLL_INTERVAL, secs + 5)
