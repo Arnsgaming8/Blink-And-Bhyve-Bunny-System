@@ -127,6 +127,7 @@ PAGE = r"""<!DOCTYPE html>
                             transition: 0.2s; }
   .switch input:checked + .slider { background: #238636; }
   .switch input:checked + .slider::before { transform: translateX(18px); background: #fff; }
+  .switch input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -342,9 +343,13 @@ async function loadCameras() {
     const r = await fetch("/api/cameras");
     const data = await r.json();
     const el = document.getElementById("camList");
-    el.innerHTML = data.map(c => `<div class="cam-item">
+    el.innerHTML = (!data.connected
+      ? '<div style="color:#8b949e;font-size:0.85rem;padding:8px 0">Blink not connected</div>'
+      : ""
+    ) + data.cameras.map(c => `<div class="cam-item">
       <label class="switch">
-        <input type="checkbox" ${c.armed ? "checked" : ""} onchange="armCamera('${esc(c.name)}', this.checked)">
+        <input type="checkbox" ${c.armed ? "checked" : ""} ${data.connected ? "" : "disabled"}
+               onchange="armCamera('${esc(c.name)}', this.checked, this)">
         <span class="slider"></span>
       </label>
       <span class="cam-name">${esc(c.name)}</span>
@@ -352,14 +357,17 @@ async function loadCameras() {
     </div>`).join("");
   } catch(e) { /* ignore */ }
 }
-async function armCamera(name, armed) {
+async function armCamera(name, armed, checkbox) {
+  checkbox.disabled = true;
   try {
-    await fetch("/api/camera/" + encodeURIComponent(name) + "/arm", {
+    const r = await fetch("/api/camera/" + encodeURIComponent(name) + "/arm", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({armed})
     });
-  } catch(e) { /* ignore */ }
+    if (!r.ok) checkbox.checked = !armed;
+  } catch(e) { checkbox.checked = !armed; }
+  checkbox.disabled = false;
 }
 </script>
 </body>
@@ -535,10 +543,11 @@ async def handle_esp32_trigger(request):
 async def handle_cameras(request):
     from bridge import CAMERAS
     blink = state.active_blink
+    connected = bool(blink and blink.cameras)
     result = []
     for cam in CAMERAS:
         armed = False
-        if blink and blink.cameras:
+        if connected:
             c = blink.cameras.get(cam["name"])
             if c:
                 armed = bool(c.arm)
@@ -547,7 +556,7 @@ async def handle_cameras(request):
             "zone": cam["zone"],
             "armed": armed,
         })
-    return web.json_response(result)
+    return web.json_response({"connected": connected, "cameras": result})
 
 
 async def handle_camera_arm(request):
