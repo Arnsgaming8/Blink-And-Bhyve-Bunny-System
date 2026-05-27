@@ -376,15 +376,15 @@ async function cancelWater() {
 }
 
 async function shutdownServer() {
-  if (!confirm("Shut down the server? Render will restart it automatically, but the page will stop updating.")) return;
-  document.getElementById("customStatus").textContent = "Shutting down server...";
+  if (!confirm("Suspend the server on Render? You will need to manually start it from the Render dashboard.")) return;
+  document.getElementById("customStatus").textContent = "Suspending server on Render...";
   clearInterval(pollInterval);
   document.querySelectorAll(".toolbar button").forEach(b => b.disabled = true);
   try {
     await fetch("/api/shutdown", {method: "POST"});
   } catch(e) { /* server is down, expected */ }
   document.getElementById("entries").innerHTML =
-    '<div class="empty"><div class="icon">&#9888;</div>Server shut down. Refresh the page after a moment once Render restarts it.</div>';
+    '<div class="empty"><div class="icon">&#9888;</div>Server suspended on Render. Go to the <a href="https://dashboard.render.com" target="_blank">Render Dashboard</a> to start it again.</div>';
 }
 
 async function customWater() {
@@ -707,13 +707,30 @@ async def handle_water_stop(request):
 
 
 async def handle_shutdown(request):
-    asyncio.ensure_future(_delayed_shutdown())
-    return web.json_response({"ok": True, "message": "Server shutting down..."})
+    asyncio.ensure_future(_suspend_service())
+    return web.json_response({"ok": True, "message": "Suspending service on Render..."})
 
 
-async def _delayed_shutdown():
-    await asyncio.sleep(1)
-    print("[shutdown] Server shutting down via /api/shutdown")
+async def _suspend_service():
+    service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
+    api_key = os.environ.get("RENDER_API_KEY")
+    if not service_id or not api_key:
+        errors.log_error("shutdown", "RENDER_SERVICE_ID or RENDER_API_KEY not set — cannot suspend")
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"https://api.render.com/v1/services/{service_id}/suspend",
+                headers={"Authorization": f"Bearer {api_key}"},
+            ) as resp:
+                if resp.status == 200:
+                    errors.log_error("shutdown", "Service suspended on Render")
+                else:
+                    text = await resp.text()
+                    errors.log_error("shutdown", f"Render suspend API {resp.status}: {text[:200]}")
+    except Exception as e:
+        errors.log_error("shutdown", str(e), exc_info=True)
+    await asyncio.sleep(2)
     os._exit(0)
 
 
