@@ -678,7 +678,7 @@ async def _manual_water(zone=None, duration_seconds=None):
             try:
                 await asyncio.sleep(duration_seconds)
             except asyncio.CancelledError:
-                errors.log_error("watering", f"Manual zone {zone} cancelled by user")
+                pass
             try:
                 await bhyve.stop_zone()
             except Exception:
