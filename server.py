@@ -352,12 +352,18 @@ async function pollStatus() {
     }
   } catch(e) { /* ignore */ }
 }
+let waterStatusTimer = null;
 async function customWater() {
   const zone = document.getElementById("customZone").value;
   const dur = document.getElementById("customDur").value;
   const unit = document.getElementById("customUnit").value;
   const status = document.getElementById("customStatus");
-  if (!zone || !dur) { status.textContent = "Enter zone and duration"; return; }
+  if (waterStatusTimer) clearTimeout(waterStatusTimer);
+  if (!zone || !dur) {
+    status.textContent = "Enter zone and duration";
+    waterStatusTimer = setTimeout(() => status.textContent = "", 3000);
+    return;
+  }
   status.textContent = "Starting...";
   try {
     const r = await fetch("/api/water/start", {
@@ -367,8 +373,8 @@ async function customWater() {
     });
     const data = await r.json();
     status.textContent = data.ok ? `Zone ${zone} started for ${dur}${unit}` : "Error: " + (data.error || "unknown");
-    setTimeout(() => status.textContent = "", 5000);
-  } catch(e) { status.textContent = "Network error"; setTimeout(() => status.textContent = "", 5000); }
+    waterStatusTimer = setTimeout(() => status.textContent = "", 5000);
+  } catch(e) { status.textContent = "Network error"; waterStatusTimer = setTimeout(() => status.textContent = "", 5000); }
 }
 setInterval(refresh, 5000);
 setInterval(check2FA, 5000);
