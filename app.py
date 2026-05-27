@@ -61,6 +61,10 @@ def generate_config():
         except json.JSONDecodeError as e:
             print(f"WARNING: CAMERAS env var is not valid JSON: {e}")
 
+    for cam in config.get("cameras", []):
+        cam.setdefault("no_water", False)
+        cam.setdefault("arm", True)
+
     with open(CONFIG_PATH, "w") as f:
         yaml.dump(config, f, default_flow_style=False)
     print(f"Config written to {CONFIG_PATH}")
