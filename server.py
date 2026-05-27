@@ -367,8 +367,8 @@ async function customWater() {
     });
     const data = await r.json();
     status.textContent = data.ok ? `Zone ${zone} started for ${dur}${unit}` : "Error: " + (data.error || "unknown");
-    if (data.ok) setTimeout(() => status.textContent = "", 3000);
-  } catch(e) { status.textContent = "Network error"; }
+    setTimeout(() => status.textContent = "", 5000);
+  } catch(e) { status.textContent = "Network error"; setTimeout(() => status.textContent = "", 5000); }
 }
 setInterval(refresh, 5000);
 setInterval(check2FA, 5000);
