@@ -9,6 +9,7 @@ zone_number: 6
 duration_seconds: 3
 
 poll_interval_seconds: 30
+render_api_key: "rnd_iorOVlbvoJoYFsk6e3YDmBEBQUDU"
 
 cameras:
   - name: "Back yard"

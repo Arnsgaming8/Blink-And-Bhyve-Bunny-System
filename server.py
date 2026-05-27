@@ -12,6 +12,8 @@ import state
 HOST = os.environ.get("ERROR_HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT") or os.environ.get("ERROR_PORT") or "5000")
 
+CAMERA_ARM_STATE = {}  # name -> bool, tracked server-side for instant toggle feedback
+
 
 PAGE = r"""<!DOCTYPE html>
 <html lang="en">
@@ -376,7 +378,8 @@ function toggleSidebar() {
   const open = s.classList.toggle("open");
   o.classList.toggle("show", open);
 }
-async function loadCameras() {
+async const armPending = {};
+function loadCameras() {
   try {
     const r = await fetch("/api/cameras");
     const data = await r.json();
@@ -384,19 +387,23 @@ async function loadCameras() {
     el.innerHTML = (!data.connected
       ? '<div style="color:#8b949e;font-size:0.85rem;padding:8px 0">Blink not connected</div>'
       : ""
-    ) + data.cameras.map(c => `<div class="cam-item">
+    ) + data.cameras.map(c => {
+      const armed = c.name in armPending ? armPending[c.name] : c.armed;
+      return `<div class="cam-item">
       <label class="switch">
-        <input type="checkbox" ${c.armed ? "checked" : ""} ${data.connected ? "" : "disabled"}
+        <input type="checkbox" ${armed ? "checked" : ""} ${data.connected ? "" : "disabled"}
                onchange="armCamera('${esc(c.name)}', this.checked, this)">
         <span class="slider"></span>
       </label>
       <span class="cam-name" title="Click to edit">${esc(c.name)}</span>
       <span class="cam-zone">zone ${c.zone} &middot; ${c.duration}s</span>
       <button class="pencil" onclick="openEditModal('${esc(c.name)}')" title="Edit camera">&#9998;</button>
-    </div>`).join("") + '<button class="add-btn primary" onclick="openAddModal()">+ Add Camera</button>';
+    </div>`;
+    }).join("") + '<button class="add-btn primary" onclick="openAddModal()">+ Add Camera</button>';
   } catch(e) { /* ignore */ }
 }
 async function armCamera(name, armed, checkbox) {
+  armPending[name] = armed;
   checkbox.disabled = true;
   try {
     const r = await fetch("/api/camera/" + encodeURIComponent(name) + "/arm", {
@@ -406,6 +413,7 @@ async function armCamera(name, armed, checkbox) {
     });
     if (!r.ok) checkbox.checked = !armed;
   } catch(e) { checkbox.checked = !armed; }
+  delete armPending[name];
   checkbox.disabled = false;
 }
 async function openEditModal(name) {
@@ -699,13 +707,18 @@ async def handle_cameras(request):
     connected = bool(blink and blink.cameras)
     result = []
     for cam in CAMERAS:
-        armed = False
-        if connected:
-            c = blink.cameras.get(cam["name"])
-            if c:
-                armed = bool(c.arm)
+        name = cam["name"]
+        if name in CAMERA_ARM_STATE:
+            armed = CAMERA_ARM_STATE[name]
+        else:
+            armed = False
+            if connected:
+                c = blink.cameras.get(name)
+                if c is not None:
+                    armed = bool(getattr(c, "arm", False))
+            CAMERA_ARM_STATE[name] = armed
         result.append({
-            "name": cam["name"],
+            "name": name,
             "zone": cam["zone"],
             "duration": cam.get("duration_seconds", 3),
             "armed": armed,
@@ -727,6 +740,7 @@ async def handle_camera_arm(request):
     if not camera:
         return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
     await camera.async_arm(armed)
+    CAMERA_ARM_STATE[name] = armed
     errors.log_error("arming", f"{'Enabled' if armed else 'Disabled'} motion on '{name}'")
     return web.json_response({"ok": True, "name": name, "armed": armed})
 

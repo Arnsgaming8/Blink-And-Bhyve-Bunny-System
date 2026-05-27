@@ -320,6 +320,13 @@ class BlinkWatcher:
                 print(f"  ERROR: Accessing camera '{name}' failed: {e}")
                 continue
 
+            armed = bool(getattr(camera, "arm", True))
+            print(f"  Camera '{name}': armed={armed}, last_record={'set' if camera.last_record else None}, motion={camera.motion_detected}")
+
+            if not armed:
+                print(f"  Skipping '{name}' — camera is disarmed")
+                continue
+
             cooldown = max(POLL_INTERVAL, secs + 5)
             if time.time() - self.last_watered.get(zone, 0) < cooldown:
                 continue
@@ -327,7 +334,6 @@ class BlinkWatcher:
             record_now = camera.last_record
             prev = self.last_records.get(name)
             motion_now = camera.motion_detected
-            print(f"  Camera '{name}': last_record={'set' if record_now else None}, motion={motion_now}")
 
             trigger = False
             if record_now and record_now != prev:
