@@ -223,8 +223,11 @@ PAGE = r"""<!DOCTYPE html>
 
 <script>
 async function refresh() {
-  const r = await fetch("/api/errors");
-  const errors = await r.json();
+  let r, errors;
+  try {
+    r = await fetch("/api/errors");
+    errors = await r.json();
+  } catch(e) { return; }
   const container = document.getElementById("entries");
   document.getElementById("count").textContent = errors.length + " entries";
   document.getElementById("count").className = "badge" + (errors.length ? " err" : "");
@@ -373,12 +376,15 @@ async function cancelWater() {
 }
 
 async function shutdownServer() {
-  if (!confirm("Shut down the server? Render will restart it automatically.")) return;
-  const status = document.getElementById("customStatus");
+  if (!confirm("Shut down the server? Render will restart it automatically, but the page will stop updating.")) return;
+  document.getElementById("customStatus").textContent = "Shutting down server...";
+  clearInterval(pollInterval);
+  document.querySelectorAll(".toolbar button").forEach(b => b.disabled = true);
   try {
-    const r = await fetch("/api/shutdown", {method: "POST"});
-    status.textContent = "Shutting down...";
-  } catch(e) { status.textContent = "Shutdown failed"; }
+    await fetch("/api/shutdown", {method: "POST"});
+  } catch(e) { /* server is down, expected */ }
+  document.getElementById("entries").innerHTML =
+    '<div class="empty"><div class="icon">&#9888;</div>Server shut down. Refresh the page after a moment once Render restarts it.</div>';
 }
 
 async function customWater() {
@@ -406,7 +412,7 @@ async function customWater() {
     waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, 5000);
   } catch(e) { status.textContent = "Network error"; waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, 5000); }
 }
-setInterval(refresh, 5000);
+var pollInterval = setInterval(refresh, 5000);
 setInterval(check2FA, 5000);
 setInterval(pollStatus, 5000);
 setInterval(loadCameras, 5000);
