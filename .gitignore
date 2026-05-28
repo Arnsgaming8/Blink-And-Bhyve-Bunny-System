@@ -3,3 +3,4 @@ __pycache__/
 .last_motion
 errors.json
 config.yml
+.blink_auth.json

@@ -50,6 +50,26 @@ except Exception as e:
 
 BHYVE_API = "https://api.orbitbhyve.com/v1"
 LAST_MOTION_FILE = os.path.join(os.path.dirname(__file__), ".last_motion")
+BLINK_AUTH_FILE = os.path.join(os.path.dirname(__file__), ".blink_auth.json")
+
+
+def _save_blink_auth(auth):
+    import json
+    data = {k: auth.data.get(k) for k in ("refresh_token", "hardware_id", "host", "region_id", "account_id", "user_id")}
+    data = {k: v for k, v in data.items() if v is not None}
+    if data:
+        with open(BLINK_AUTH_FILE, "w") as f:
+            json.dump(data, f)
+        print(f"  Blink auth saved to {BLINK_AUTH_FILE}")
+
+
+def _load_blink_auth():
+    import json
+    try:
+        with open(BLINK_AUTH_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 POLL_INTERVAL = CONFIG.get("poll_interval_seconds", 30)
 if not isinstance(POLL_INTERVAL, (int, float)) or POLL_INTERVAL < 1:
@@ -442,13 +462,12 @@ async def main():
 
             blink = Blink()
             try:
-                blink.auth = Auth(
-                    {
-                        "username": CONFIG["blink_email"],
-                        "password": CONFIG["blink_password"],
-                    },
-                    session=session,
-                )
+                auth_data = {
+                    "username": CONFIG["blink_email"],
+                    "password": CONFIG["blink_password"],
+                }
+                auth_data.update(_load_blink_auth())
+                blink.auth = Auth(auth_data, session=session)
                 if not await blink.start():
                     msg = "Blink login failed. Check credentials or rate-limited. Retrying..."
                     print(f"  {msg}")
@@ -460,6 +479,7 @@ async def main():
                         try:
                             if await blink.start():
                                 state.active_blink = blink
+                                _save_blink_auth(blink.auth)
                                 print("  Blink login successful on retry")
                                 break
                         except BlinkTwoFARequiredError:
@@ -469,6 +489,7 @@ async def main():
                         retry = min(retry * 2, 3600)
                 else:
                     state.active_blink = blink
+                    _save_blink_auth(blink.auth)
             except BlinkTwoFARequiredError:
                 msg = (
                     "Blink requires two-factor authentication. "
@@ -494,6 +515,7 @@ async def main():
                             continue
                         state.blink_instance = None
                         state.active_blink = blink
+                        _save_blink_auth(blink.auth)
                         errors.log_error("main.blink_2fa", "2FA completed successfully")
                         print("  2FA completed successfully")
                         break
