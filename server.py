@@ -473,6 +473,8 @@ async function pollStatus() {
     } else {
       el.textContent = "poll: waiting...";
     }
+    const cancelBtn = document.getElementById("cancelWaterBtn");
+    cancelBtn.style.display = data.water_active ? "inline-block" : "none";
   } catch(e) { /* ignore */ }
 }
 let waterStatusTimer = null;
@@ -698,6 +700,7 @@ async def handle_status(request):
         "error_count": len(errors.get_errors(9999)),
         "last_poll": state.last_poll,
         "poll_interval": POLL_INTERVAL,
+        "water_active": _manual_water_task is not None and not _manual_water_task.done(),
     })
 
 
@@ -1097,6 +1100,7 @@ async def handle_camera_arm(request):
     if not camera:
         return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
     await camera.async_arm(armed)
+    camera.arm = armed
     for cam in CAMERAS:
         if cam["name"] == name:
             cam["arm"] = armed
