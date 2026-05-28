@@ -82,6 +82,11 @@ def generate_config():
         if val is not None:
             os.environ.setdefault(env_key, str(val))
 
+    blink_auth_cfg = config.get("blink_auth")
+    if blink_auth_cfg and not os.environ.get("BLINK_AUTH"):
+        import json
+        os.environ["BLINK_AUTH"] = json.dumps(blink_auth_cfg)
+
 
 async def bridge_background_task(app):
     if os.environ.get("SETUP_MODE") == "1":

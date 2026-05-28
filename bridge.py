@@ -50,26 +50,70 @@ except Exception as e:
 
 BHYVE_API = "https://api.orbitbhyve.com/v1"
 LAST_MOTION_FILE = os.path.join(os.path.dirname(__file__), ".last_motion")
-BLINK_AUTH_FILE = os.path.join(os.path.dirname(__file__), ".blink_auth.json")
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yml")
 
 
 def _save_blink_auth(auth):
     import json
     data = {k: auth.data.get(k) for k in ("refresh_token", "hardware_id", "host", "region_id", "account_id", "user_id")}
     data = {k: v for k, v in data.items() if v is not None}
-    if data:
-        with open(BLINK_AUTH_FILE, "w") as f:
-            json.dump(data, f)
-        print(f"  Blink auth saved to {BLINK_AUTH_FILE}")
+    if not data:
+        return
+    os.environ["BLINK_AUTH"] = json.dumps(data)
+    try:
+        with open(CONFIG_PATH) as f:
+            cfg = yaml.safe_load(f) or {}
+        cfg["blink_auth"] = data
+        with open(CONFIG_PATH, "w") as f:
+            yaml.dump(cfg, f, default_flow_style=False)
+        print(f"  Blink auth saved to config.yml")
+    except Exception as e:
+        print(f"  Failed to save blink auth to config.yml: {e}")
 
 
 def _load_blink_auth():
     import json
+    raw = os.environ.get("BLINK_AUTH")
+    if raw:
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            pass
     try:
-        with open(BLINK_AUTH_FILE) as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+        cfg = yaml.safe_load(open(CONFIG_PATH)) or {}
+        return cfg.get("blink_auth", {})
+    except Exception:
         return {}
+
+
+async def _sync_blink_auth_to_render():
+    import json
+    raw = os.environ.get("BLINK_AUTH")
+    if not raw:
+        return
+    api_key = os.environ.get("RENDER_API_KEY")
+    if not api_key:
+        print("  RENDER_API_KEY not set — blink auth won't survive deploy")
+        return
+    service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
+    if not service_id:
+        print("  RENDER_SERVICE_ID not found — blink auth won't survive deploy")
+        return
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.put(
+                f"https://api.render.com/v1/services/{service_id}/env-vars/BLINK_AUTH",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"key": "BLINK_AUTH", "value": raw},
+            ) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    print(f"  Failed to sync blink auth to Render: {resp.status} {text[:200]}")
+                else:
+                    print("  Blink auth synced to Render env var")
+    except Exception as e:
+        print(f"  Failed to sync blink auth to Render: {e}")
+
 
 POLL_INTERVAL = CONFIG.get("poll_interval_seconds", 30)
 if not isinstance(POLL_INTERVAL, (int, float)) or POLL_INTERVAL < 1:
@@ -481,6 +525,7 @@ async def main():
                                 state.active_blink = blink
                                 _save_blink_auth(blink.auth)
                                 print("  Blink login successful on retry")
+                                await _sync_blink_auth_to_render()
                                 break
                         except BlinkTwoFARequiredError:
                             raise
@@ -490,6 +535,7 @@ async def main():
                 else:
                     state.active_blink = blink
                     _save_blink_auth(blink.auth)
+                    await _sync_blink_auth_to_render()
             except BlinkTwoFARequiredError:
                 msg = (
                     "Blink requires two-factor authentication. "
@@ -516,6 +562,7 @@ async def main():
                         state.blink_instance = None
                         state.active_blink = blink
                         _save_blink_auth(blink.auth)
+                        await _sync_blink_auth_to_render()
                         errors.log_error("main.blink_2fa", "2FA completed successfully")
                         print("  2FA completed successfully")
                         break
