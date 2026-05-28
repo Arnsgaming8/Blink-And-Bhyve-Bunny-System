@@ -579,12 +579,6 @@ async function loadCameras() {
   } catch(e) { /* ignore */ }
 }
 async function armCamera(name, armed, checkbox) {
-  const action = armed ? "turn on" : "turn off";
-  if (!confirm(`Are you sure you want to ${action} motion detection for "${name}"?`)) {
-    checkbox.checked = !armed;
-    return;
-  }
-  armPending[name] = armed;
   checkbox.disabled = true;
   try {
     const r = await fetch("/api/camera/" + encodeURIComponent(name) + "/arm", {
@@ -592,9 +586,10 @@ async function armCamera(name, armed, checkbox) {
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({armed})
     });
-    if (!r.ok) checkbox.checked = !armed;
-  } catch(e) { checkbox.checked = !armed; }
-  delete armPending[name];
+    if (r.ok) {
+      checkbox.checked = armed;
+    }
+  } catch(e) { }
   checkbox.disabled = false;
 }
 async function openEditModal(name) {
