@@ -579,6 +579,11 @@ async function loadCameras() {
   } catch(e) { /* ignore */ }
 }
 async function armCamera(name, armed, checkbox) {
+  const action = armed ? "turn on" : "turn off";
+  if (!confirm(`Are you sure you want to ${action} motion detection for "${name}"?`)) {
+    checkbox.checked = !armed;
+    return;
+  }
   armPending[name] = armed;
   checkbox.disabled = true;
   try {
