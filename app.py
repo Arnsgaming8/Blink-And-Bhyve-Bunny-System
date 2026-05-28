@@ -52,10 +52,14 @@ def generate_config():
         try:
             env_cameras = json.loads(cameras_json)
             existing = {c["name"]: c for c in config.get("cameras", [])}
+            merged = []
             for c in env_cameras:
                 if c["name"] in existing:
                     existing[c["name"]].update(c)
-            config["cameras"] = list(existing.values())
+                    merged.append(existing[c["name"]])
+                else:
+                    merged.append(c)
+            config["cameras"] = merged
         except json.JSONDecodeError as e:
             print(f"WARNING: CAMERAS env var is not valid JSON: {e}")
 
