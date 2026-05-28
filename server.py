@@ -527,7 +527,6 @@ async function customWater() {
     return;
   }
   status.textContent = "Starting...";
-  const showCancelTimer = setTimeout(() => cancelBtn.style.display = "inline-block", 3000);
   try {
     const r = await fetch("/api/water/start", {
       method: "POST",
@@ -535,14 +534,14 @@ async function customWater() {
       body: JSON.stringify({zone: parseInt(zone), duration: parseInt(dur), unit})
     });
     const data = await r.json();
-    if (data.cancelled) { clearTimeout(showCancelTimer); status.textContent = "Cancelled"; return; }
+    if (data.cancelled) { status.textContent = "Cancelled"; return; }
     status.textContent = data.ok ? `Zone ${zone} started for ${dur}${unit}` : "Error: " + (data.error || "unknown");
-    waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, (data.duration_seconds + 3) * 1000);
-  } catch(e) { clearTimeout(showCancelTimer); status.textContent = "Network error"; waterStatusTimer = setTimeout(() => { status.textContent = ""; cancelBtn.style.display = "none"; }, 5000); }
+    waterStatusTimer = setTimeout(() => { status.textContent = ""; }, (data.duration_seconds + 3) * 1000);
+  } catch(e) { status.textContent = "Network error"; waterStatusTimer = setTimeout(() => { status.textContent = ""; }, 5000); }
 }
 var pollInterval = setInterval(refresh, 5000);
 var check2FAInterval = setInterval(check2FA, 5000);
-var pollStatusInterval = setInterval(pollStatus, 5000);
+var pollStatusInterval = setInterval(pollStatus, 2000);
 var camerasInterval = setInterval(loadCameras, 5000);
 refresh();
 check2FA();
