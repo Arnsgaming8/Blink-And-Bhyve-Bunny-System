@@ -915,6 +915,8 @@ async def handle_setup(request):
     service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
 
     if has_render_key and service_id:
+        if render_api_key:
+            os.environ["RENDER_API_KEY"] = render_api_key
         api_key = render_api_key or os.environ.get("RENDER_API_KEY")
         try:
             async with aiohttp.ClientSession() as session:
