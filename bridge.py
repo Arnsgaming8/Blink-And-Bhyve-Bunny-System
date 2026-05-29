@@ -55,7 +55,8 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yml")
 
 def _save_blink_auth(auth):
     import json
-    data = {k: auth.data.get(k) for k in ("refresh_token", "hardware_id", "host", "region_id", "account_id", "user_id")}
+    login_data = auth.login_attributes
+    data = {k: login_data.get(k) for k in ("refresh_token", "hardware_id", "host", "region_id", "account_id", "user_id")}
     data = {k: v for k, v in data.items() if v is not None}
     if not data:
         return
