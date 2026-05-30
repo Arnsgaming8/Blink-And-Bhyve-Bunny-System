@@ -124,7 +124,7 @@ if not isinstance(POLL_INTERVAL, (int, float)) or POLL_INTERVAL < 1:
 DISABLE_BLINK = CONFIG.get("disable_blink_polling", False) or os.environ.get("DISABLE_BLINK_POLLING") == "1"
 
 raw_cameras = CONFIG.get("cameras")
-if raw_cameras:
+if raw_cameras is not None and len(raw_cameras) > 0:
     CAMERAS = []
     for c in raw_cameras:
         CAMERAS.append({
@@ -134,7 +134,7 @@ if raw_cameras:
             "arm": c.get("arm", True),
             "no_water": c.get("no_water", False),
         })
-else:
+elif raw_cameras is None:
     CAMERAS = [{
         "name": CONFIG.get("camera_name", "?"),
         "zone": int(CONFIG.get("zone_number", 1)),
@@ -142,6 +142,8 @@ else:
         "arm": True,
         "no_water": False,
     }]
+else:
+    CAMERAS = []
 
 
 def load_last_motion():
