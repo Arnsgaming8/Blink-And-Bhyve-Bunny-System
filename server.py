@@ -264,7 +264,8 @@ PAGE = r"""<!DOCTYPE html>
                             transition: 0.2s; }
   .switch input:checked + .slider { background: #238636; }
   .switch input:checked + .slider::before { transform: translateX(18px); background: #fff; }
-  .switch input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+  .switch input:disabled + .slider { cursor: not-allowed; }
+  .switch input:disabled + .slider::before { opacity: 0.5; }
 </style>
 </head>
 <body>
@@ -314,6 +315,7 @@ PAGE = r"""<!DOCTYPE html>
 <div class="toolbar">
   <button class="sidebar-btn" onclick="toggleSidebar()">&#9776; Cameras</button>
   <span class="badge" id="count">0 errors</span>
+  <span class="badge" id="blinkStatus" style="font-size:0.8rem">Blink: --</span>
   <span class="badge" id="pollStatus" style="font-size:0.8rem">poll: --</span>
   <button id="refreshBtn" onclick="manualRefresh()">Refresh</button>
   <span class="badge" id="zoneBadge" style="display:none"></span>
@@ -479,6 +481,9 @@ async function pollStatus() {
     } else {
       el.textContent = "poll: waiting...";
     }
+    const blinkStatus = document.getElementById("blinkStatus");
+    blinkStatus.textContent = data.blink_connected ? "Blink connected" : "Blink disconnected";
+    blinkStatus.style.color = data.blink_connected ? "#3fb950" : "#da3633";
     const cancelBtn = document.getElementById("cancelWaterBtn");
     cancelBtn.style.display = data.water_active ? "inline-block" : "none";
   } catch(e) { /* ignore */ }
@@ -574,7 +579,7 @@ async function loadCameras() {
       const armed = c.name in armPending ? armPending[c.name] : c.armed;
       return `<div class="cam-item">
       <label class="switch">
-        <input type="checkbox" ${armed ? "checked" : ""}
+        <input type="checkbox" ${armed ? "checked" : ""} ${data.connected ? "" : "disabled"}
                onchange="armCamera('${esc(c.name)}', this.checked, this)">
         <span class="slider"></span>
       </label>
@@ -719,12 +724,15 @@ async def handle_clear(request):
 
 async def handle_status(request):
     from bridge import POLL_INTERVAL
+    blink = state.active_blink
+    blink_connected = bool(blink and blink.cameras)
     return web.json_response({
         "status": "running",
         "error_count": len(errors.get_errors(9999)),
         "last_poll": state.last_poll,
         "poll_interval": POLL_INTERVAL,
         "water_active": _manual_water_task is not None and not _manual_water_task.done(),
+        "blink_connected": blink_connected,
     })
 
 
@@ -1121,8 +1129,11 @@ async def handle_camera_arm(request):
     if blink and blink.cameras:
         camera = blink.cameras.get(name)
         if camera:
-            await camera.async_arm(armed)
-            camera.arm = armed
+            try:
+                await camera.async_arm(armed)
+                camera.arm = armed
+            except Exception as exc:
+                errors.log_error("arming", f"Blink sync failed for '{name}': {exc}")
         else:
             return web.json_response({"ok": False, "error": f"Camera '{name}' not found"}, status=404)
     for cam in CAMERAS:
