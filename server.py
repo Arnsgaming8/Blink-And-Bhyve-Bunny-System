@@ -321,7 +321,7 @@ PAGE = r"""<!DOCTYPE html>
     </div>
   </div>
   <div id="logoutStep2" style="display:none">
-    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Re-enter credentials before logging out</p>
+    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Enter new credentials before logging out</p>
     <input type="hidden" id="reauthAccount" value="blink">
     <div id="reauthBlinkFields">
       <p style="font-size:0.85rem;font-weight:600;color:#58a6ff;margin-bottom:4px">Blink</p>
