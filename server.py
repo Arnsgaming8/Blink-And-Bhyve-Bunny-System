@@ -1103,10 +1103,6 @@ async def handle_cameras(request):
     for cam in CAMERAS:
         name = cam["name"]
         armed = cam.get("arm", True)
-        if connected:
-            c = blink.cameras.get(name)
-            if c is not None:
-                armed = bool(getattr(c, "arm", armed))
         result.append({
             "name": name,
             "zone": cam["zone"],
@@ -1131,7 +1127,6 @@ async def handle_camera_arm(request):
         if camera:
             try:
                 await camera.async_arm(armed)
-                camera.arm = armed
             except Exception as exc:
                 errors.log_error("arming", f"Blink sync failed for '{name}': {exc}")
         else:
