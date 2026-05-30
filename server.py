@@ -1096,6 +1096,26 @@ async def handle_setup(request):
     return web.json_response({"ok": True, "message": "Saved to config.yml. Set RENDER_API_KEY env var for persistence, then restart from Render dashboard."})
 
 
+async def handle_redeploy(request):
+    service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
+    api_key = os.environ.get("RENDER_API_KEY")
+    if not service_id or not api_key:
+        return web.json_response({"ok": False, "error": "RENDER_API_KEY or RENDER_SERVICE_ID not set"}, status=400)
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"https://api.render.com/v1/services/{service_id}/deploys",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"clearCache": "do_not_clear"},
+            ) as resp:
+                if resp.status == 201:
+                    return web.json_response({"ok": True, "message": "Deploy triggered"})
+                text = await resp.text()
+                return web.json_response({"ok": False, "error": f"Render API {resp.status}: {text[:200]}"}, status=500)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+
 async def handle_shutdown(request):
     asyncio.ensure_future(_suspend_service())
     return web.json_response({"ok": True, "message": "Suspending service on Render..."})
@@ -1442,6 +1462,7 @@ def create_app():
     app.router.add_post("/api/water/stop", handle_water_stop)
     app.router.add_post("/api/setup", handle_setup)
     app.router.add_post("/api/shutdown", handle_shutdown)
+    app.router.add_post("/api/redeploy", handle_redeploy)
     app.router.add_post("/api/esp32/trigger", handle_esp32_trigger)
     app.router.add_get("/api/cameras", handle_cameras)
     app.router.add_post("/api/cameras", handle_camera_create)
