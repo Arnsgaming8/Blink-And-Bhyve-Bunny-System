@@ -310,7 +310,10 @@ PAGE = r"""<!DOCTYPE html>
 </div>
 
 <div class="modal" id="logoutBox">
-  <h3>Log Out</h3>
+  <h3 style="display:flex;align-items:center;justify-content:space-between">
+    Log Out
+    <button onclick="foreverLogout()" style="background:#8b0000;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem">Forever Logout</button>
+  </h3>
   <div id="logoutStep1">
     <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Log out of which account?</p>
     <div class="modal-actions" style="flex-direction:column">
@@ -318,7 +321,6 @@ PAGE = r"""<!DOCTYPE html>
       <button class="primary" onclick="showReauth('bhyve')">B-hyve</button>
       <button class="danger" onclick="showReauth('both')">Both</button>
       <button onclick="closeLogout()">Cancel</button>
-      <button onclick="foreverLogout()" style="background:#8b0000;color:#fff;border:none;margin-top:8px;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:600">Forever Logout</button>
     </div>
   </div>
   <div id="logoutStep2" style="display:none">
@@ -1227,6 +1229,11 @@ async def handle_esp32_trigger(request):
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=400)
     ts = datetime.now(timezone.utc).time().isoformat(timespec="seconds")
+    from bridge import CAMERAS
+    no_water_zone = any(c.get("no_water", False) for c in CAMERAS if c.get("zone") == zone)
+    if no_water_zone:
+        errors.log_error("motion", f"[{ts}] ESP32: {camera} → zone {zone} — no_water enabled, skipped")
+        return web.json_response({"ok": True, "skipped": True, "reason": "no_water enabled for this zone"})
     errors.log_error("motion", f"[{ts}] ESP32: {camera} → zone {zone} ({duration}s)")
     asyncio.ensure_future(_manual_water(zone, duration))
     return web.json_response({"ok": True, "zone": zone, "duration": duration})
