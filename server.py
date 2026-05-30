@@ -225,7 +225,8 @@ PAGE = r"""<!DOCTYPE html>
   .sidebar-overlay.show { display: block; }
   .sidebar { position: fixed; top: 0; left: -320px; width: 300px; height: 100%;
              background: #161b22; border-right: 1px solid #30363d; z-index: 99;
-             transition: left 0.25s; padding: 20px; overflow-y: auto; }
+             transition: left 0.25s; padding: 20px; overflow-y: auto;
+             display: flex; flex-direction: column; }
   .sidebar.open { left: 0; }
   .sidebar h2 { font-size: 1.1rem; margin-bottom: 16px; color: #c9d1d9; }
   .sidebar .close { float: right; background: none; border: none; color: #8b949e;
@@ -239,8 +240,9 @@ PAGE = r"""<!DOCTYPE html>
                      font-size: 0.85rem; padding: 0 2px; flex-shrink: 0; }
   .sidebar .pencil:hover { color: #58a6ff; }
   .sidebar .add-btn { width: 100%; margin-top: 12px; text-align: center; }
-  .sidebar .logout-btn { width: 100%; margin-top: 16px; text-align: center; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-  .sidebar .logout-btn:hover { background: #da3633; border-color: #da3633; color: #fff; }
+  #camList { flex: 1; overflow-y: auto; }
+  .sidebar .logout-btn { margin-top: auto; align-self: flex-start; background: #da3633; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 600; }
+  .sidebar .logout-btn:hover { background: #f85149; }
   #logoutBox .modal-actions button { flex: initial; }
   #logoutBox .modal-actions button.danger { background: #da3633; border-color: #da3633; color: #fff; }
   #logoutBox .modal-actions button.danger:hover { background: #f85149; }
