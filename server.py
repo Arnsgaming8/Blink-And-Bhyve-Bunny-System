@@ -137,6 +137,11 @@ PAGE = r"""<!DOCTYPE html>
   .badge { background: #21262d; padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; }
   .badge.err { background: #da3633; color: #fff; }
   .badge.warn { background: #d29922; color: #fff; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+           background: #238636; color: #fff; padding: 10px 24px; border-radius: 8px;
+           font-size: 0.9rem; z-index: 9999; opacity: 0; transition: opacity 0.3s;
+           pointer-events: none; white-space: nowrap; }
+  #toast.error { background: #da3633; }
   button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
            padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
   button:hover { background: #30363d; }
@@ -328,6 +333,7 @@ PAGE = r"""<!DOCTYPE html>
   <span id="customStatus" style="color:#8b949e;font-size:0.85rem"></span>
 </div>
 <div id="entries"></div>
+<div id="toast"></div>
 
 <script>
 async function manualRefresh() {
@@ -581,6 +587,8 @@ async function loadCameras() {
 }
 async function armCamera(name, armed, checkbox) {
   checkbox.disabled = true;
+  armPending[name] = armed;
+  checkbox.checked = armed;
   try {
     const r = await fetch("/api/camera/" + encodeURIComponent(name) + "/arm", {
       method: "POST",
@@ -588,10 +596,27 @@ async function armCamera(name, armed, checkbox) {
       body: JSON.stringify({armed})
     });
     if (r.ok) {
-      checkbox.checked = armed;
+      showToast(armed ? "Motion enabled on " + name : "Motion disabled on " + name);
+    } else {
+      checkbox.checked = !armed;
+      armPending[name] = !armed;
+      showToast("Failed: " + (await r.json()).error, true);
     }
-  } catch(e) { }
+  } catch(e) {
+    checkbox.checked = !armed;
+    armPending[name] = !armed;
+    showToast("Network error toggling motion", true);
+  }
+  delete armPending[name];
   checkbox.disabled = false;
+}
+function showToast(msg, isError) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = isError ? "error" : "";
+  t.style.opacity = "1";
+  if (window._toastTimer) clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => { t.style.opacity = "0"; }, 3000);
 }
 async function openEditModal(name) {
   document.getElementById("modalTitle").textContent = "Edit Camera";
