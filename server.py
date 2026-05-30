@@ -239,6 +239,11 @@ PAGE = r"""<!DOCTYPE html>
                      font-size: 0.85rem; padding: 0 2px; flex-shrink: 0; }
   .sidebar .pencil:hover { color: #58a6ff; }
   .sidebar .add-btn { width: 100%; margin-top: 12px; text-align: center; }
+  .sidebar .logout-btn { width: 100%; margin-top: 16px; text-align: center; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+  .sidebar .logout-btn:hover { background: #da3633; border-color: #da3633; color: #fff; }
+  #logoutBox .modal-actions button { flex: initial; }
+  #logoutBox .modal-actions button.danger { background: #da3633; border-color: #da3633; color: #fff; }
+  #logoutBox .modal-actions button.danger:hover { background: #f85149; }
   .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                    background: rgba(0,0,0,0.6); z-index: 100; display: none; }
   .modal-overlay.show { display: block; }
@@ -277,6 +282,7 @@ PAGE = r"""<!DOCTYPE html>
   <button class="close" onclick="toggleSidebar()">&times;</button>
   <h2>Cameras</h2>
   <div id="camList"></div>
+  <button class="logout-btn" onclick="openLogout()">Log Out</button>
 </div>
 
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
@@ -299,6 +305,29 @@ PAGE = r"""<!DOCTYPE html>
       <button type="button" class="del-btn" id="modalDelete">Delete</button>
     </div>
   </form>
+</div>
+
+<div class="modal" id="logoutBox">
+  <h3>Log Out</h3>
+  <div id="logoutStep1">
+    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Log out of which account?</p>
+    <div class="modal-actions" style="flex-direction:column">
+      <button class="primary" onclick="doLogout(['blink'])">Blink</button>
+      <button class="primary" onclick="doLogout(['bhyve'])">B-hyve</button>
+      <button class="danger" onclick="doLogout(['blink','bhyve'])">Both</button>
+      <button onclick="closeLogout()">Cancel</button>
+    </div>
+  </div>
+  <div id="logoutStep2" style="display:none">
+    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Re-enter <span id="reauthLabel">Blink</span> credentials</p>
+    <input type="hidden" id="reauthAccount" value="blink">
+    <input type="email" id="reauthEmail" placeholder="Email" style="width:100%;margin-bottom:8px">
+    <input type="password" id="reauthPassword" placeholder="Password" style="width:100%;margin-bottom:12px">
+    <div class="modal-actions">
+      <button class="primary" onclick="submitReauth()">Save &amp; Reconnect</button>
+      <button onclick="closeLogout()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <div class="twofa-banner" id="twofaBanner">
@@ -661,6 +690,58 @@ function openModal() {
 function closeModal() {
   document.getElementById("modalOverlay").classList.remove("show");
   document.getElementById("modalBox").classList.remove("show");
+}
+function openLogout() {
+  document.getElementById("logoutStep1").style.display = "";
+  document.getElementById("logoutStep2").style.display = "none";
+  document.getElementById("reauthEmail").value = "";
+  document.getElementById("reauthPassword").value = "";
+  document.getElementById("modalOverlay").classList.add("show");
+  document.getElementById("logoutBox").classList.add("show");
+}
+function closeLogout() {
+  document.getElementById("modalOverlay").classList.remove("show");
+  document.getElementById("logoutBox").classList.remove("show");
+}
+async function doLogout(accounts) {
+  closeLogout();
+  showToast("Logging out " + accounts.join(" + ") + "...");
+  try {
+    const r = await fetch("/api/logout", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({accounts})
+    });
+    const data = await r.json();
+    if (!data.ok) { showToast("Logout failed: " + (data.error || "unknown"), true); return; }
+    if (accounts.length === 1) {
+      document.getElementById("reauthLabel").textContent = accounts[0] === "blink" ? "Blink" : "B-hyve";
+      document.getElementById("reauthAccount").value = accounts[0];
+      document.getElementById("logoutStep1").style.display = "none";
+      document.getElementById("logoutStep2").style.display = "";
+      document.getElementById("modalOverlay").classList.add("show");
+      document.getElementById("logoutBox").classList.add("show");
+    } else {
+      showToast("Logged out of both accounts");
+    }
+  } catch(e) { showToast("Network error logging out", true); }
+}
+async function submitReauth() {
+  const account = document.getElementById("reauthAccount").value;
+  const email = document.getElementById("reauthEmail").value.trim();
+  const password = document.getElementById("reauthPassword").value;
+  if (!email || !password) { showToast("Fill in email and password", true); return; }
+  closeLogout();
+  showToast("Saving " + account + " credentials...");
+  try {
+    const r = await fetch("/api/reauth", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({account, email, password})
+    });
+    const data = await r.json();
+    showToast(data.ok ? data.message : "Error: " + (data.error || "unknown"), !data.ok);
+  } catch(e) { showToast("Network error saving credentials", true); }
 }
 async function saveCamera(oldName) {
   const name = document.getElementById("modalName").value.trim();
@@ -1217,6 +1298,106 @@ async def handle_camera_delete(request):
     return web.json_response({"ok": True})
 
 
+async def handle_logout(request):
+    import yaml
+    try:
+        body = await request.json()
+        accounts = body.get("accounts", [])
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
+
+    if "blink" in accounts:
+        state.active_blink = None
+        state.twofa_pending = False
+        try:
+            with open(config_path) as f:
+                cfg = yaml.safe_load(f) or {}
+            cfg.pop("blink_auth", None)
+            with open(config_path, "w") as f:
+                yaml.dump(cfg, f)
+        except Exception:
+            pass
+        if os.environ.get("BLINK_AUTH"):
+            del os.environ["BLINK_AUTH"]
+        errors.log_error("logout", "Blink logged out")
+
+    if "bhyve" in accounts:
+        try:
+            from bridge import bhyve_client, BHYVE_WS
+            if bhyve_client:
+                await bhyve_client.disconnect()
+        except Exception:
+            pass
+        errors.log_error("logout", "B-hyve logged out")
+
+    return web.json_response({"ok": True})
+
+
+async def handle_reauth(request):
+    import yaml
+    try:
+        body = await request.json()
+        account = body.get("account", "")
+        email = body.get("email", "").strip()
+        password = body.get("password", "")
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+    if not email or not password:
+        return web.json_response({"ok": False, "error": "email and password required"}, status=400)
+
+    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
+    try:
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+    except Exception:
+        cfg = {}
+
+    if account == "blink":
+        cfg["blink_email"] = email
+        cfg["blink_password"] = password
+        cfg.pop("blink_auth", None)
+        blink_key = "BLINK_EMAIL"
+        blink_pass_key = "BLINK_PASSWORD"
+    elif account == "bhyve":
+        cfg["bhyve_email"] = email
+        cfg["bhyve_password"] = password
+        blink_key = "BHYVE_EMAIL"
+        blink_pass_key = "BHYVE_PASSWORD"
+    else:
+        return web.json_response({"ok": False, "error": f"unknown account: {account}"}, status=400)
+
+    try:
+        with open(config_path, "w") as f:
+            yaml.dump(cfg, f)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": f"failed to save config: {e}"}, status=500)
+
+    os.environ[blink_key] = email
+    os.environ[blink_pass_key] = password
+
+    api_key = os.environ.get("RENDER_API_KEY")
+    if api_key:
+        service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
+        if service_id:
+            import aiohttp
+            updates = {blink_key: email, blink_pass_key: password}
+            for key, val in updates.items():
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        await session.put(
+                            f"https://api.render.com/v1/services/{service_id}/env-vars/{key}",
+                            headers={"Authorization": f"Bearer {api_key}"},
+                            json={"key": key, "value": val},
+                        )
+                except Exception:
+                    pass
+
+    errors.log_error("reauth", f"{account} credentials updated — reconnect on next retry")
+    return web.json_response({"ok": True, "message": f"{account} credentials saved. Bridge will reconnect on next retry."})
+
+
 def create_app():
     app = web.Application()
     app.router.add_get("/", handle_index)
@@ -1238,6 +1419,8 @@ def create_app():
     app.router.add_delete("/api/camera/{name}", handle_camera_delete)
     app.router.add_post("/api/camera/{name}/arm", handle_camera_arm)
     app.router.add_post("/api/camera/{name}/zone", handle_camera_zone)
+    app.router.add_post("/api/logout", handle_logout)
+    app.router.add_post("/api/reauth", handle_reauth)
     return app
 
 
