@@ -704,8 +704,10 @@ function closeModal() {
 function openLogout() {
   document.getElementById("logoutStep1").style.display = "";
   document.getElementById("logoutStep2").style.display = "none";
-  document.getElementById("reauthEmail").value = "";
-  document.getElementById("reauthPassword").value = "";
+  document.getElementById("reauthBlinkEmail").value = "";
+  document.getElementById("reauthBlinkPass").value = "";
+  document.getElementById("reauthBhyveEmail").value = "";
+  document.getElementById("reauthBhyvePass").value = "";
   document.getElementById("modalOverlay").classList.add("show");
   document.getElementById("logoutBox").classList.add("show");
 }
