@@ -314,8 +314,8 @@ PAGE = r"""<!DOCTYPE html>
   <div id="logoutStep1">
     <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Log out of which account?</p>
     <div class="modal-actions" style="flex-direction:column">
-      <button class="primary" onclick="doLogout(['blink'])">Blink</button>
-      <button class="primary" onclick="doLogout(['bhyve'])">B-hyve</button>
+      <button class="primary" onclick="showReauth('blink')">Blink</button>
+      <button class="primary" onclick="showReauth('bhyve')">B-hyve</button>
       <button class="danger" onclick="doLogout(['blink','bhyve'])">Both</button>
       <button onclick="closeLogout()">Cancel</button>
     </div>
@@ -705,6 +705,12 @@ function closeLogout() {
   document.getElementById("modalOverlay").classList.remove("show");
   document.getElementById("logoutBox").classList.remove("show");
 }
+function showReauth(account) {
+  document.getElementById("reauthLabel").textContent = account === "blink" ? "Blink" : "B-hyve";
+  document.getElementById("reauthAccount").value = account;
+  document.getElementById("logoutStep1").style.display = "none";
+  document.getElementById("logoutStep2").style.display = "";
+}
 async function doLogout(accounts) {
   closeLogout();
   showToast("Logging out " + accounts.join(" + ") + "...");
@@ -716,16 +722,7 @@ async function doLogout(accounts) {
     });
     const data = await r.json();
     if (!data.ok) { showToast("Logout failed: " + (data.error || "unknown"), true); return; }
-    if (accounts.length === 1) {
-      document.getElementById("reauthLabel").textContent = accounts[0] === "blink" ? "Blink" : "B-hyve";
-      document.getElementById("reauthAccount").value = accounts[0];
-      document.getElementById("logoutStep1").style.display = "none";
-      document.getElementById("logoutStep2").style.display = "";
-      document.getElementById("modalOverlay").classList.add("show");
-      document.getElementById("logoutBox").classList.add("show");
-    } else {
-      showToast("Logged out of both accounts");
-    }
+    showToast("Logged out of " + accounts.join(" + "));
   } catch(e) { showToast("Network error logging out", true); }
 }
 async function submitReauth() {
@@ -734,16 +731,22 @@ async function submitReauth() {
   const password = document.getElementById("reauthPassword").value;
   if (!email || !password) { showToast("Fill in email and password", true); return; }
   closeLogout();
-  showToast("Saving " + account + " credentials...");
+  showToast("Logging out " + account + " and saving new credentials...");
   try {
-    const r = await fetch("/api/reauth", {
+    const r = await fetch("/api/logout", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({accounts: [account]})
+    });
+    if (!r.ok) { showToast("Logout failed", true); return; }
+    const r2 = await fetch("/api/reauth", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({account, email, password})
     });
-    const data = await r.json();
+    const data = await r2.json();
     showToast(data.ok ? data.message : "Error: " + (data.error || "unknown"), !data.ok);
-  } catch(e) { showToast("Network error saving credentials", true); }
+  } catch(e) { showToast("Network error", true); }
 }
 async function saveCamera(oldName) {
   const name = document.getElementById("modalName").value.trim();
