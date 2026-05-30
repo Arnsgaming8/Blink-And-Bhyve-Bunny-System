@@ -341,6 +341,17 @@ PAGE = r"""<!DOCTYPE html>
   </div>
 </div>
 
+<div class="modal" id="qrBox">
+  <h3>Device Pass</h3>
+  <div style="text-align:center;padding:16px 0">
+    <img id="qrImage" src="" alt="QR Code" style="width:220px;height:220px;border-radius:8px">
+    <p id="qrUrl" style="color:#8b949e;font-size:0.85rem;word-break:break-all;margin-top:8px"></p>
+  </div>
+  <div class="modal-actions">
+    <button class="primary" onclick="closeQr()">Done</button>
+  </div>
+</div>
+
 <div class="twofa-banner" id="twofaBanner">
   <h3>&#9888; Two-Factor Authentication Required</h3>
   <p>A verification code has been sent to your Blink account email. Enter it below to complete sign-in.</p>
@@ -360,6 +371,7 @@ PAGE = r"""<!DOCTYPE html>
   <button id="refreshBtn" onclick="manualRefresh()">Refresh</button>
   <span class="badge" id="zoneBadge" style="display:none"></span>
   <button class="danger" onclick="clearErrors()">Clear All</button>
+  <button onclick="generatePass()" style="background:#1f6feb;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">Generate Pass</button>
 </div>
 <div class="water-form">
   <label>Zone</label>
@@ -701,6 +713,7 @@ function openModal() {
 function closeModal() {
   document.getElementById("modalOverlay").classList.remove("show");
   document.getElementById("modalBox").classList.remove("show");
+  document.getElementById("qrBox").classList.remove("show");
 }
 function openLogout() {
   document.getElementById("logoutStep1").style.display = "";
@@ -773,6 +786,18 @@ async function submitReauth() {
     }
     showToast("Credentials saved — bridge will reconnect");
   } catch(e) { showToast("Network error", true); }
+}
+function generatePass() {
+  const url = window.location.origin;
+  const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + encodeURIComponent(url);
+  document.getElementById("qrImage").src = qrUrl;
+  document.getElementById("qrUrl").textContent = url;
+  document.getElementById("modalOverlay").classList.add("show");
+  document.getElementById("qrBox").classList.add("show");
+}
+function closeQr() {
+  document.getElementById("modalOverlay").classList.remove("show");
+  document.getElementById("qrBox").classList.remove("show");
 }
 async function foreverLogout() {
   closeLogout();
