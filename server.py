@@ -316,15 +316,23 @@ PAGE = r"""<!DOCTYPE html>
     <div class="modal-actions" style="flex-direction:column">
       <button class="primary" onclick="showReauth('blink')">Blink</button>
       <button class="primary" onclick="showReauth('bhyve')">B-hyve</button>
-      <button class="danger" onclick="doLogout(['blink','bhyve'])">Both</button>
+      <button class="danger" onclick="showReauth('both')">Both</button>
       <button onclick="closeLogout()">Cancel</button>
     </div>
   </div>
   <div id="logoutStep2" style="display:none">
-    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Re-enter <span id="reauthLabel">Blink</span> credentials</p>
+    <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Re-enter credentials before logging out</p>
     <input type="hidden" id="reauthAccount" value="blink">
-    <input type="email" id="reauthEmail" placeholder="Email" style="width:100%;margin-bottom:8px">
-    <input type="password" id="reauthPassword" placeholder="Password" style="width:100%;margin-bottom:12px">
+    <div id="reauthBlinkFields">
+      <p style="font-size:0.85rem;font-weight:600;color:#58a6ff;margin-bottom:4px">Blink</p>
+      <input type="email" id="reauthBlinkEmail" placeholder="Blink email" style="width:100%;margin-bottom:6px">
+      <input type="password" id="reauthBlinkPass" placeholder="Blink password" style="width:100%;margin-bottom:12px">
+    </div>
+    <div id="reauthBhyveFields">
+      <p style="font-size:0.85rem;font-weight:600;color:#3fb950;margin-bottom:4px">B-hyve</p>
+      <input type="email" id="reauthBhyveEmail" placeholder="B-hyve email" style="width:100%;margin-bottom:6px">
+      <input type="password" id="reauthBhyvePass" placeholder="B-hyve password" style="width:100%;margin-bottom:12px">
+    </div>
     <div class="modal-actions">
       <button class="primary" onclick="submitReauth()">Save &amp; Reconnect</button>
       <button onclick="closeLogout()">Cancel</button>
@@ -706,8 +714,15 @@ function closeLogout() {
   document.getElementById("logoutBox").classList.remove("show");
 }
 function showReauth(account) {
-  document.getElementById("reauthLabel").textContent = account === "blink" ? "Blink" : "B-hyve";
   document.getElementById("reauthAccount").value = account;
+  const showBlink = account === "blink" || account === "both";
+  const showBhyve = account === "bhyve" || account === "both";
+  document.getElementById("reauthBlinkFields").style.display = showBlink ? "" : "none";
+  document.getElementById("reauthBhyveFields").style.display = showBhyve ? "" : "none";
+  document.getElementById("reauthBlinkEmail").value = "";
+  document.getElementById("reauthBlinkPass").value = "";
+  document.getElementById("reauthBhyveEmail").value = "";
+  document.getElementById("reauthBhyvePass").value = "";
   document.getElementById("logoutStep1").style.display = "none";
   document.getElementById("logoutStep2").style.display = "";
 }
@@ -726,26 +741,34 @@ async function doLogout(accounts) {
   } catch(e) { showToast("Network error logging out", true); }
 }
 async function submitReauth() {
-  const account = document.getElementById("reauthAccount").value;
-  const email = document.getElementById("reauthEmail").value.trim();
-  const password = document.getElementById("reauthPassword").value;
-  if (!email || !password) { showToast("Fill in email and password", true); return; }
+  const accounts = document.getElementById("reauthAccount").value;
+  const list = accounts === "both" ? ["blink", "bhyve"] : [accounts];
+  const creds = {};
+  for (const acct of list) {
+    const emailEl = document.getElementById("reauth" + (acct === "blink" ? "Blink" : "Bhyve") + "Email");
+    const passEl = document.getElementById("reauth" + (acct === "blink" ? "Blink" : "Bhyve") + "Pass");
+    const email = emailEl.value.trim();
+    const password = passEl.value;
+    if (!email || !password) { showToast("Fill in email and password for " + acct, true); return; }
+    creds[acct] = {email, password};
+  }
   closeLogout();
-  showToast("Logging out " + account + " and saving new credentials...");
+  showToast("Logging out and saving credentials...");
   try {
     const r = await fetch("/api/logout", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({accounts: [account]})
+      body: JSON.stringify({accounts: list})
     });
     if (!r.ok) { showToast("Logout failed", true); return; }
-    const r2 = await fetch("/api/reauth", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({account, email, password})
-    });
-    const data = await r2.json();
-    showToast(data.ok ? data.message : "Error: " + (data.error || "unknown"), !data.ok);
+    for (const acct of list) {
+      await fetch("/api/reauth", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({account: acct, email: creds[acct].email, password: creds[acct].password})
+      });
+    }
+    showToast("Credentials saved — bridge will reconnect");
   } catch(e) { showToast("Network error", true); }
 }
 async function saveCamera(oldName) {
