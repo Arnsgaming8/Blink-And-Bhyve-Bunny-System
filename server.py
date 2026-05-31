@@ -1013,6 +1013,7 @@ _water_cancel_requested = False
 
 async def _manual_water(zone=None, duration_seconds=None):
     global _manual_water_task, _water_pending, _water_cancel_requested
+    zone_started = False
     try:
         if _water_cancel_requested:
             errors.log_error("watering", "Manual water aborted before start (cancel requested)")
@@ -1028,6 +1029,7 @@ async def _manual_water(zone=None, duration_seconds=None):
             await bhyve.login()
             minutes = max(1, round(duration_seconds / 60))
             await bhyve.start_zone(zone, minutes)
+            zone_started = True
             errors.log_error("watering", f"Manual zone {zone} started ({duration_seconds}s)")
             try:
                 await asyncio.sleep(duration_seconds)
@@ -1038,6 +1040,17 @@ async def _manual_water(zone=None, duration_seconds=None):
             except Exception:
                 pass
             errors.log_error("watering", f"Manual zone {zone} stopped")
+    except asyncio.CancelledError:
+        if zone_started:
+            try:
+                from bridge import CONFIG as _cfg, BHyveClient as _BHyve
+                async with aiohttp.ClientSession() as _s:
+                    _b = _BHyve(_s)
+                    _b.device_id = _cfg["device_id"]
+                    await _b.login()
+                    await _b.stop_zone()
+            except Exception:
+                pass
     except Exception as e:
         errors.log_error("manual_water", str(e), exc_info=True)
     finally:
@@ -1086,12 +1099,22 @@ async def handle_water_start(request):
 
 async def handle_water_stop(request):
     global _manual_water_task, _water_pending, _water_cancel_requested
-    if _water_pending:
-        _water_cancel_requested = True
-        if _manual_water_task and not _manual_water_task.done():
-            _manual_water_task.cancel()
-        return web.json_response({"ok": True, "message": "Watering cancelled"})
-    return web.json_response({"ok": False, "error": "No active watering"}, status=400)
+    if not _water_pending:
+        return web.json_response({"ok": False, "error": "No active watering"}, status=400)
+    _water_cancel_requested = True
+    if _manual_water_task and not _manual_water_task.done():
+        _manual_water_task.cancel()
+    try:
+        from bridge import CONFIG, BHyveClient
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            bhyve = BHyveClient(session)
+            bhyve.device_id = CONFIG["device_id"]
+            await bhyve.login()
+            await bhyve.stop_zone()
+    except Exception:
+        pass
+    return web.json_response({"ok": True, "message": "Watering cancelled"})
 
 
 async def handle_setup(request):
