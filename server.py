@@ -401,7 +401,7 @@ PAGE = r"""<!DOCTYPE html>
   <span class="badge" id="zoneBadge" style="display:none"></span>
   <button class="danger" onclick="clearErrors()">Clear All</button>
   <button onclick="generatePass()" style="background:#1f6feb;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">Generate Pass</button>
-  <button onclick="location.href='/setup'" style="background:#6e7681;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">Setup</button>
+  <button id="setupBtn" onclick="location.href='/setup'" style="background:#6e7681;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">Setup</button>
 </div>
 <div class="water-form">
   <label>Zone</label>
@@ -566,6 +566,8 @@ async function pollStatus() {
     const blinkStatus = document.getElementById("blinkStatus");
     blinkStatus.textContent = data.blink_connected ? "Blink connected" : "Blink disconnected";
     blinkStatus.style.color = data.blink_connected ? "#3fb950" : "#da3633";
+    const setupBtn = document.getElementById("setupBtn");
+    if (setupBtn) setupBtn.style.display = data.blink_connected ? "none" : "";
     const cancelBtn = document.getElementById("cancelWaterBtn");
     cancelBtn.style.display = data.water_active ? "inline-block" : "none";
   } catch(e) { /* ignore */ }
