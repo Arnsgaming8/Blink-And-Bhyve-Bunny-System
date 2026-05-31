@@ -76,22 +76,19 @@ python app.py
 1. Push this repo to GitHub.
 2. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**.
 3. Connect this repo.
-4. Fill in the secret environment variables (marked `sync: false` in `render.yaml`):
-
-### Required env vars
-
-| Variable | Description |
-|---|---|
-| `BLINK_EMAIL` | Blink account email |
-| `BLINK_PASSWORD` | Blink account password |
-| `BHYVE_EMAIL` | Orbit B-hyve account email |
-| `BHYVE_PASSWORD` | Orbit B-hyve account password |
-| `DEVICE_ID` | Your B-hyve sprinkler device ID |
+4. No environment variables needed — the setup form at `/setup` will prompt for credentials on first run.
 
 ### Optional env vars
 
+All credentials can be entered via the setup form. These env vars are only needed if you want to skip the setup form:
+
 | Variable | Default | Description |
 |---|---|---|
+| `BLINK_EMAIL` | — | Blink account email |
+| `BLINK_PASSWORD` | — | Blink account password |
+| `BHYVE_EMAIL` | — | Orbit B-hyve account email |
+| `BHYVE_PASSWORD` | — | Orbit B-hyve account password |
+| `DEVICE_ID` | — | Your B-hyve sprinkler device ID |
 | `CAMERAS` | — | JSON array of camera configs (see below). Overrides `cameras` in config.yml |
 | `POLL_INTERVAL_SECONDS` | `30` | How often to check Blink for new clips |
 | `DISABLE_BLINK_POLLING` | — | Set to `1` to skip Blink polling (use ESP32 triggers only) |
