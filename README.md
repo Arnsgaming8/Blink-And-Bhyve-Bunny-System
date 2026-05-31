@@ -73,10 +73,11 @@ python app.py
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
 
-1. Push this repo to GitHub.
-2. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**.
-3. Connect this repo.
-4. No environment variables needed — the setup form at `/setup` will prompt for credentials on first run.
+1. Click the Deploy to Render button
+2. in the "Specified configurations" box click on "Create all as new services" do not mind the credential form next to it. you will enter those on site.
+3. After all that, click on deploy. then go to Resources on the left hand sidebar. and click on your web service which look like "blink-byhve-bridge-####".
+4. When the service is done deploying click on your link which would be the small purple words under the big header
+5. No environment variables needed — the setup form at `/setup` will prompt for credentials on first run.
 
 ### Optional env vars
 
