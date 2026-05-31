@@ -396,6 +396,7 @@ PAGE = r"""<!DOCTYPE html>
   <button class="sidebar-btn" onclick="toggleSidebar()">&#9776; Cameras</button>
   <span class="badge" id="count">0 errors</span>
   <span class="badge" id="blinkStatus" style="font-size:0.8rem">Blink: --</span>
+  <span class="badge" id="bhyveStatus" style="font-size:0.8rem">B-hyve: --</span>
   <span class="badge" id="pollStatus" style="font-size:0.8rem">poll: --</span>
   <button id="refreshBtn" onclick="manualRefresh()">Refresh</button>
   <span class="badge" id="zoneBadge" style="display:none"></span>
@@ -566,8 +567,13 @@ async function pollStatus() {
     const blinkStatus = document.getElementById("blinkStatus");
     blinkStatus.textContent = data.blink_connected ? "Blink connected" : "Blink disconnected";
     blinkStatus.style.color = data.blink_connected ? "#3fb950" : "#da3633";
+    const bhyveStatus = document.getElementById("bhyveStatus");
+    if (bhyveStatus) {
+      bhyveStatus.textContent = data.bhyve_connected ? "B-hyve configured" : "B-hyve not configured";
+      bhyveStatus.style.color = data.bhyve_connected ? "#3fb950" : "#da3633";
+    }
     const setupBtn = document.getElementById("setupBtn");
-    if (setupBtn) setupBtn.style.display = data.blink_connected ? "none" : "";
+    if (setupBtn) setupBtn.style.display = (data.blink_connected && data.bhyve_connected) ? "none" : "";
     const cancelBtn = document.getElementById("cancelWaterBtn");
     cancelBtn.style.display = data.water_active ? "inline-block" : "none";
   } catch(e) { /* ignore */ }
@@ -941,9 +947,10 @@ async def handle_clear(request):
 
 
 async def handle_status(request):
-    from bridge import POLL_INTERVAL
+    from bridge import POLL_INTERVAL, CONFIG
     blink = state.active_blink
     blink_connected = bool(blink and blink.cameras)
+    bhyve_connected = bool(CONFIG.get("bhyve_email") and CONFIG.get("bhyve_password") and CONFIG.get("device_id"))
     return web.json_response({
         "status": "running",
         "error_count": len(errors.get_errors(9999)),
@@ -951,6 +958,7 @@ async def handle_status(request):
         "poll_interval": POLL_INTERVAL,
         "water_active": _manual_water_task is not None and not _manual_water_task.done(),
         "blink_connected": blink_connected,
+        "bhyve_connected": bhyve_connected,
     })
 
 
