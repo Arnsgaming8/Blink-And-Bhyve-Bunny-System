@@ -32,6 +32,12 @@ SETUP_PAGE = r"""<!DOCTYPE html>
   input { width: 100%; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
           padding: 8px 10px; color: #c9d1d9; font-size: 0.9rem; }
   input:focus { outline: none; border-color: #58a6ff; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 36px; }
+  .pw-toggle { position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+               background: none; border: none; color: #8b949e; cursor: pointer;
+               font-size: 1.1rem; padding: 4px; line-height: 1; }
+  .pw-toggle:hover { color: #c9d1d9; }
   button.primary { background: #238636; border-color: #238636; color: #fff; border: none;
                    padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
                    font-weight: 600; width: 100%; margin-top: 16px; }
@@ -51,7 +57,10 @@ SETUP_PAGE = r"""<!DOCTYPE html>
   <label>Email</label>
   <input type="email" id="blinkEmail" placeholder="you@example.com">
   <label>Password</label>
-  <input type="password" id="blinkPassword" placeholder="Blink password">
+  <div class="pw-wrap">
+    <input type="password" id="blinkPassword" placeholder="Blink password">
+    <button class="pw-toggle" onclick="togglePw('blinkPassword',this)" type="button">Show</button>
+  </div>
   <div class="hint">Leave blank if you don't use Blink (set DISABLE_BLINK_POLLING later).</div>
 </div>
 
@@ -60,7 +69,10 @@ SETUP_PAGE = r"""<!DOCTYPE html>
   <label>Email</label>
   <input type="email" id="bhyveEmail" placeholder="you@example.com">
   <label>Password</label>
-  <input type="password" id="bhyvePassword" placeholder="B-hyve password">
+  <div class="pw-wrap">
+    <input type="password" id="bhyvePassword" placeholder="B-hyve password">
+    <button class="pw-toggle" onclick="togglePw('bhyvePassword',this)" type="button">Show</button>
+  </div>
 </div>
 
 <div class="card">
@@ -73,7 +85,10 @@ SETUP_PAGE = r"""<!DOCTYPE html>
 <div class="card" id="renderCard">
   <h2>Render API Key</h2>
   <label>Render API Key</label>
-  <input type="password" id="renderApiKey" placeholder="rnd_...">
+  <div class="pw-wrap">
+    <input type="password" id="renderApiKey" placeholder="rnd_...">
+    <button class="pw-toggle" onclick="togglePw('renderApiKey',this)" type="button">Show</button>
+  </div>
   <div class="hint">Required to save credentials as environment variables. Get it from Render dashboard &rarr; Account &rarr; API Keys.</div>
 </div>
 
@@ -81,6 +96,11 @@ SETUP_PAGE = r"""<!DOCTYPE html>
 <div class="status" id="setupStatus"></div>
 
 <script>
+function togglePw(id, btn) {
+  const inp = document.getElementById(id);
+  if (inp.type === "password") { inp.type = "text"; btn.textContent = "Hide"; }
+  else { inp.type = "password"; btn.textContent = "Show"; }
+}
 async function saveSetup() {
   const btn = document.querySelector("button.primary");
   const status = document.getElementById("setupStatus");
