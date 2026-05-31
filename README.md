@@ -1,5 +1,10 @@
 # BABBS — Blink And Bhyve Bunny System
 
+<p align="left">
+  <a href="https://render.com/deploy"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render"></a>
+  <a href="#deploy-to-render"><img src="https://img.shields.io/badge/View_Deploy_Guide-2D2D2D?style=for-the-badge&logo=readthedocs&logoColor=white" alt="View Deploy Guide"></a>
+</p>
+
 A Python async bridge that detects motion on **Blink security cameras** and automatically waters **Orbit B-hyve** sprinkler zones. Runs entirely on **Render** (free tier) — no extra hardware needed.
 
 ## Features
@@ -144,4 +149,4 @@ This bypasses Blink polling entirely. Useful with `DISABLE_BLINK_POLLING=1`.
 
 ## License
 
-MIT
+CC BY-NC-SA 4.0
