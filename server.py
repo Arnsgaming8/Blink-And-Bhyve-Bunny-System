@@ -332,7 +332,7 @@ PAGE = r"""<!DOCTYPE html>
 <div class="modal" id="logoutBox">
   <h3 style="display:flex;align-items:center;justify-content:space-between">
     Log Out
-    <button onclick="foreverLogout()" style="background:#8b0000;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem">Forever Logout</button>
+    <button id="foreverLogoutBtn" onclick="foreverLogout()" style="background:#8b0000;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-weight:600;font-size:0.75rem">Forever Logout</button>
   </h3>
   <div id="logoutStep1">
     <p style="color:#8b949e;font-size:0.85rem;margin-bottom:12px">Log out of which account?</p>
@@ -403,6 +403,7 @@ PAGE = r"""<!DOCTYPE html>
   <button class="danger" onclick="clearErrors()">Clear All</button>
   <button onclick="generatePass()" style="background:#1f6feb;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">Generate Pass</button>
   <button id="setupBtn" onclick="location.href='/setup'" style="background:#6e7681;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">Setup</button>
+  <button onclick="openLogout()" class="danger" style="padding:6px 14px;font-size:0.8rem;font-weight:600">Log Out</button>
 </div>
 <div class="water-form">
   <label>Zone</label>
@@ -762,6 +763,7 @@ function openLogout() {
   document.getElementById("reauthBlinkPass").value = "";
   document.getElementById("reauthBhyveEmail").value = "";
   document.getElementById("reauthBhyvePass").value = "";
+  document.getElementById("foreverLogoutBtn").style.display = "";
   document.getElementById("modalOverlay").classList.add("show");
   document.getElementById("logoutBox").classList.add("show");
 }
@@ -770,6 +772,7 @@ function closeLogout() {
   document.getElementById("logoutBox").classList.remove("show");
 }
 function showReauth(account) {
+  document.getElementById("foreverLogoutBtn").style.display = "none";
   document.getElementById("reauthAccount").value = account;
   const showBlink = account === "blink" || account === "both";
   const showBhyve = account === "bhyve" || account === "both";
