@@ -806,13 +806,19 @@ async function submitReauth() {
   const accounts = document.getElementById("reauthAccount").value;
   const list = accounts === "both" ? ["blink", "bhyve"] : [accounts];
   const creds = {};
+  let missing = [];
   for (const acct of list) {
     const emailEl = document.getElementById("reauth" + (acct === "blink" ? "Blink" : "Bhyve") + "Email");
     const passEl = document.getElementById("reauth" + (acct === "blink" ? "Blink" : "Bhyve") + "Pass");
     const email = emailEl.value.trim();
     const password = passEl.value;
-    if (!email || !password) { showToast("Fill in email and password for " + acct, true); return; }
+    if (!email || !password) { missing.push(acct); continue; }
     creds[acct] = {email, password};
+  }
+  if (missing.length > 0) {
+    const names = missing.map(a => a === "blink" ? "Blink" : "B-hyve");
+    showToast("Fill in email and password for " + names.join(" and "), true);
+    return;
   }
   closeLogout();
   showToast("Logging out and saving credentials...");
