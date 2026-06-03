@@ -1231,6 +1231,9 @@ async def handle_setup(request):
                         updates[env_key] = val
                 if body.get("disable_blink") or (not blink_email and not blink_password):
                     updates["DISABLE_BLINK_POLLING"] = "1"
+                blink_auth = os.environ.get("BLINK_AUTH")
+                if blink_auth:
+                    updates["BLINK_AUTH"] = blink_auth
                 for env_key, val in updates.items():
                     async with session.put(
                         f"https://api.render.com/v1/services/{service_id}/env-vars/{env_key}",
