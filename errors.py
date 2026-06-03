@@ -7,10 +7,15 @@ ERROR_FILE = os.path.join(os.path.dirname(__file__), "errors.json")
 MAX_ERRORS = 200
 _USE_MEMORY = os.environ.get("ERRORS_MEMORY", "0") == "1"
 _memory_store = []
+_next_id = 0
 
 
 def log_error(source, message, exc_info=None):
+    global _next_id
+    entry_id = _next_id
+    _next_id += 1
     entry = {
+        "id": entry_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "source": source,
         "message": str(message),
@@ -40,6 +45,22 @@ def clear_errors():
         _memory_store.clear()
     else:
         _save_errors([])
+
+
+def delete_error(entry_id):
+    if _USE_MEMORY:
+        for i, e in enumerate(_memory_store):
+            if e.get("id") == entry_id:
+                _memory_store.pop(i)
+                return True
+    else:
+        errors = _load_errors()
+        for i, e in enumerate(errors):
+            if e.get("id") == entry_id:
+                errors.pop(i)
+                _save_errors(errors)
+                return True
+    return False
 
 
 def _load_errors():

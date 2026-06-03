@@ -179,6 +179,8 @@ PAGE = r"""<!DOCTYPE html>
                  margin-bottom: 6px; font-size: 0.85rem; }
   .entry .source { font-weight: 600; color: #58a6ff; }
   .entry .time { color: #8b949e; font-size: 0.8rem; }
+  .entry .del-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 1rem; padding: 0 2px; line-height: 1; }
+  .entry .del-btn:hover { color: #f85149; }
   .entry .msg { color: #c9d1d9; font-family: monospace; font-size: 0.85rem;
                 white-space: pre-wrap; word-break: break-word; }
   .entry .actions { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
@@ -455,6 +457,7 @@ async function refresh() {
       <div class="head">
         <span class="source">${esc(e.source)}</span>
         <span class="time">${esc(e.timestamp)}</span>
+        <button class="del-btn" onclick="deleteError(${e.id})" title="Delete entry">&#128465;</button>
       </div>
       <div class="msg">${esc(e.message)}</div>
       <div class="actions">
@@ -480,6 +483,10 @@ function copyError(btn, encoded) {
 async function clearErrors() {
   if (!confirm("Clear all error entries?")) return;
   await fetch("/api/clear", { method: "POST" });
+  refresh();
+}
+async function deleteError(id) {
+  await fetch("/api/errors/delete", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id}) });
   refresh();
 }
 async function submit2FA() {
@@ -941,6 +948,16 @@ async def handle_errors(request):
 async def handle_clear(request):
     errors.clear_errors()
     return web.json_response({"ok": True})
+
+
+async def handle_error_delete(request):
+    try:
+        body = await request.json()
+        entry_id = int(body.get("id"))
+    except Exception:
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+    ok = errors.delete_error(entry_id)
+    return web.json_response({"ok": ok})
 
 
 async def handle_status(request):
@@ -1660,6 +1677,7 @@ def create_app():
     app.router.add_get("/", handle_index)
     app.router.add_get("/api/errors", handle_errors)
     app.router.add_post("/api/clear", handle_clear)
+    app.router.add_post("/api/errors/delete", handle_error_delete)
     app.router.add_get("/api/status", handle_status)
     app.router.add_get("/api/blink/2fa/status", handle_2fa_status)
     app.router.add_post("/api/blink/2fa", handle_2fa_submit)
