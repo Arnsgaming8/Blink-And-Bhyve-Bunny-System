@@ -179,7 +179,7 @@ PAGE = r"""<!DOCTYPE html>
                  margin-bottom: 6px; font-size: 0.85rem; }
   .entry .source { font-weight: 600; color: #58a6ff; }
   .entry .time { color: #8b949e; font-size: 0.8rem; }
-  .entry .del-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 1rem; padding: 0 2px; line-height: 1; }
+  .entry .del-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 1rem; padding: 0 4px; }
   .entry .del-btn:hover { color: #f85149; }
   .entry .msg { color: #c9d1d9; font-family: monospace; font-size: 0.85rem;
                 white-space: pre-wrap; word-break: break-word; }
@@ -457,11 +457,11 @@ async function refresh() {
       <div class="head">
         <span class="source">${esc(e.source)}</span>
         <span class="time">${esc(e.timestamp)}</span>
-        <button class="del-btn" onclick="deleteError(${e.id})" title="Delete entry">&#128465;</button>
       </div>
       <div class="msg">${esc(e.message)}</div>
       <div class="actions">
         <button class="copy-btn" onclick="copyError(this, '${enc(e)}')">Copy</button>
+        <button class="del-btn" onclick="deleteError(${e.id})" title="Delete entry">&#128465;</button>
         ${hasTrace ? `<span class="trace-toggle" onclick="this.parentElement.nextElementSibling.classList.toggle('show')">Show traceback</span>` : ""}
       </div>
       ${hasTrace ? `<div class="trace">${esc(e.traceback)}<br><button class="copy-btn" style="margin-top:6px" onclick="copyError(this, '${enc({traceback: e.traceback})}')">Copy traceback</button></div>` : ""}
