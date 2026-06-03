@@ -1218,6 +1218,12 @@ async def handle_setup(request):
             errors.log_error("setup.render_api", str(e), exc_info=True)
             return web.json_response({"ok": True, "message": "Saved to config.yml but failed to update Render env vars. Restart manually from Render dashboard."})
 
+        from bridge import CAMERAS
+        cfg_cameras = cfg.get("cameras", [])
+        if cfg_cameras != list(CAMERAS):
+            CAMERAS[:] = cfg_cameras
+        await _sync_cameras_config("setup")
+
         return web.json_response({"ok": True, "message": "Credentials saved and synced to Render. Restarting service..."})
 
     return web.json_response({"ok": True, "message": "Saved to config.yml. Set RENDER_API_KEY env var for persistence, then restart from Render dashboard."})
