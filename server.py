@@ -1555,7 +1555,11 @@ async def handle_camera_create(request):
     if any(c["name"] == name for c in CAMERAS):
         return web.json_response({"ok": False, "error": f"Camera '{name}' already exists"}, status=409)
 
-    new_cam = {"name": name, "zone": zone, "duration_seconds": duration, "arm": False, "no_water": no_water}
+    new_arm = False
+    blink = state.active_blink
+    if blink and blink.cameras and blink.cameras.get(name) is not None:
+        new_arm = bool(getattr(blink.cameras[name], "arm", True))
+    new_cam = {"name": name, "zone": zone, "duration_seconds": duration, "arm": new_arm, "no_water": no_water}
     CAMERAS.append(new_cam)
     await _sync_cameras_config("camera_create")
     return web.json_response({"ok": True, "camera": new_cam})
