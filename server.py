@@ -1557,8 +1557,15 @@ async def handle_camera_create(request):
 
     new_arm = False
     blink = state.active_blink
-    if blink and blink.cameras and blink.cameras.get(name) is not None:
-        new_arm = bool(getattr(blink.cameras[name], "arm", True))
+    if blink and blink.cameras:
+        blink_cam = blink.cameras.get(name)
+        if blink_cam is None:
+            for bn, bc in blink.cameras.items():
+                if bn.lower() == name.lower():
+                    blink_cam = bc
+                    break
+        if blink_cam is not None:
+            new_arm = bool(getattr(blink_cam, "arm", True))
     new_cam = {"name": name, "zone": zone, "duration_seconds": duration, "arm": new_arm, "no_water": no_water}
     CAMERAS.append(new_cam)
     await _sync_cameras_config("camera_create")
