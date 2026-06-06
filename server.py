@@ -1156,7 +1156,7 @@ async def handle_water_start(request):
 
 
 async def handle_water_stop(request):
-    global _manual_water_task, _water_pending, _water_cancel_requested
+    global _water_cancel_requested
     if not _water_pending:
         return web.json_response({"ok": False, "error": "No active watering"}, status=400)
     _water_cancel_requested = True
@@ -1176,7 +1176,7 @@ async def handle_water_stop(request):
 
 
 async def handle_setup(request):
-    import json, yaml
+    import yaml
     try:
         body = await request.json()
     except Exception:
@@ -1402,7 +1402,7 @@ def _cameras_json():
 
 async def _sync_cameras_config(event_label):
     import yaml
-    from bridge import CAMERAS, CONFIG
+    from bridge import CAMERAS
 
     config_path = os.path.join(os.path.dirname(__file__), "config.yml")
     try:
@@ -1601,7 +1601,7 @@ async def handle_logout(request):
 
     if "bhyve" in accounts:
         try:
-            from bridge import bhyve_client, BHYVE_WS
+            from bridge import bhyve_client
             if bhyve_client:
                 await bhyve_client.disconnect()
         except Exception:

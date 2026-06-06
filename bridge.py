@@ -67,7 +67,7 @@ def _save_blink_auth(auth):
         cfg["blink_auth"] = data
         with open(CONFIG_PATH, "w") as f:
             yaml.dump(cfg, f, default_flow_style=False)
-        print(f"  Blink auth saved to config.yml")
+        print("  Blink auth saved to config.yml")
     except Exception as e:
         print(f"  Failed to save blink auth to config.yml: {e}")
 
@@ -88,7 +88,6 @@ def _load_blink_auth():
 
 
 async def _sync_blink_auth_to_render():
-    import json
     raw = os.environ.get("BLINK_AUTH")
     if not raw:
         return
@@ -118,7 +117,7 @@ async def _sync_blink_auth_to_render():
 
 POLL_INTERVAL = CONFIG.get("poll_interval_seconds", 30)
 if not isinstance(POLL_INTERVAL, (int, float)) or POLL_INTERVAL < 1:
-    print(f"Invalid poll_interval_seconds, defaulting to 30")
+    print("Invalid poll_interval_seconds, defaulting to 30")
     POLL_INTERVAL = 30
 
 DISABLE_BLINK = CONFIG.get("disable_blink_polling", False) or os.environ.get("DISABLE_BLINK_POLLING") == "1"
