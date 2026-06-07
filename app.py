@@ -120,26 +120,6 @@ async def cleanup_bridge(app):
             pass
 
 
-async def _start_self_ping(app):
-    url = os.environ.get("RENDER_EXTERNAL_URL")
-    if not url:
-        return
-    print(f"Self-pinging {url} every 1s to keep Render free tier alive")
-
-    async def _ping():
-        import aiohttp
-        while True:
-            await asyncio.sleep(1)
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
-                    async with s.get(url):
-                        pass
-            except Exception:
-                pass
-
-    app["ping_task"] = asyncio.create_task(_ping())
-
-
 async def _cleanup_ping(app):
     task = app.get("ping_task")
     if isinstance(task, asyncio.Task):
@@ -160,8 +140,8 @@ def main():
 
     app = create_app()
     app.on_startup.append(bridge_background_task)
-    app.on_startup.append(_start_self_ping)
     app.on_cleanup.append(cleanup_bridge)
+    app.on_cleanup.append(_cleanup_ping)
     app.on_cleanup.append(_cleanup_ping)
 
     print(f"Dashboard at http://0.0.0.0:{PORT}")
