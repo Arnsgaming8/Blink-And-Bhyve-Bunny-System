@@ -399,6 +399,8 @@ class BlinkWatcher:
 
             if not armed:
                 print(f"  Skipping '{name}' — camera is disarmed")
+                if camera.last_record:
+                    self.last_records[name] = camera.last_record
                 continue
 
             if cam.get("no_water", False):
@@ -409,6 +411,8 @@ class BlinkWatcher:
 
             cooldown = max(POLL_INTERVAL, secs + 5)
             if time.time() - self.last_watered.get(zone, 0) < cooldown:
+                remaining = cooldown - (time.time() - self.last_watered.get(zone, 0))
+                print(f"  Skipping '{name}' — cooldown {remaining:.0f}s left for zone {zone}")
                 continue
 
             record_now = camera.last_record
@@ -424,6 +428,8 @@ class BlinkWatcher:
             elif motion_now:
                 trigger = True
                 reason = "motion flag"
+            else:
+                print(f"  No trigger: record_now unchanged{' (' + str(record_now)[:20] + ')' if record_now else ' (None)'}, motion=False")
 
             if trigger:
                 self.last_watered[zone] = time.time()
