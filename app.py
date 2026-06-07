@@ -124,12 +124,12 @@ async def _start_self_ping(app):
     url = os.environ.get("RENDER_EXTERNAL_URL")
     if not url:
         return
-    print(f"Self-pinging {url} every 60s to keep Render free tier alive")
+    print(f"Self-pinging {url} every 1s to keep Render free tier alive")
 
     async def _ping():
         import aiohttp
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(1)
             try:
                 async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s:
                     async with s.get(url):
