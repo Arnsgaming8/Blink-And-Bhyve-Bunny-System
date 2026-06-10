@@ -221,8 +221,8 @@ class BHyveClient:
     async def start_zone(self, zone, minutes):
         try:
             await self.connect_ws()
-            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             minutes = max(1, round(minutes))
+            ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             payload = {
                 "event": "change_mode",
                 "mode": "manual",
@@ -230,7 +230,7 @@ class BHyveClient:
                 "timestamp": ts,
                 "stations": [{"station": zone, "run_time": minutes}],
             }
-            await self.ws.send_json(payload)
+            await self._send_ws_json(payload)
             started = False
             for _ in range(10):
                 try:
@@ -250,6 +250,15 @@ class BHyveClient:
         except Exception as e:
             raise RuntimeError(f"Start zone failed: {e}") from e
 
+    async def _send_ws_json(self, payload):
+        try:
+            await self.ws.send_json(payload)
+        except (aiohttp.ClientConnectionResetError, aiohttp.ClientError):
+            self.ws = None
+            self._token_for_ws = None
+            await self.connect_ws()
+            await self.ws.send_json(payload)
+
     async def stop_zone(self):
         try:
             await self.connect_ws()
@@ -261,7 +270,7 @@ class BHyveClient:
                 "timestamp": ts,
                 "stations": [],
             }
-            await self.ws.send_json(payload)
+            await self._send_ws_json(payload)
         except Exception as e:
             raise RuntimeError(f"Stop zone failed: {e}") from e
 
