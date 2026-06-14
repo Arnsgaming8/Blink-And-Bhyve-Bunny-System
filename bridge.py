@@ -178,24 +178,42 @@ class BHyveClient:
         self.device_id = CONFIG["device_id"]
 
     async def login(self):
+        import json as _json
         payload = {
             "session": {
                 "email": CONFIG["bhyve_email"],
                 "password": CONFIG["bhyve_password"],
             }
         }
-        try:
-            async with self.session.post(f"{BHYVE_API}/session", json=payload) as r:
-                data = await r.json()
-                if r.status >= 400:
-                    raise RuntimeError(
-                        f"B-hyve login failed ({r.status}): {data.get('error', data)}"
-                    )
-                self.token = data["orbit_session_token"]
-        except KeyError as e:
-            raise RuntimeError(f"B-hyve login response missing field: {e}") from e
-        except aiohttp.ClientError as e:
-            raise RuntimeError(f"B-hyve login network error: {e}") from e
+        for attempt in range(3):
+            try:
+                async with self.session.post(f"{BHYVE_API}/session", json=payload) as r:
+                    text = await r.text()
+                    if r.status >= 500:
+                        if attempt < 2:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        raise RuntimeError(f"B-hyve login failed ({r.status}): {text[:200]}")
+                    if r.status >= 400:
+                        raise RuntimeError(
+                            f"B-hyve login failed ({r.status}): {text[:200]}"
+                        )
+                    try:
+                        data = _json.loads(text)
+                    except Exception:
+                        if attempt < 2:
+                            await asyncio.sleep(2 ** attempt)
+                            continue
+                        raise
+                    self.token = data["orbit_session_token"]
+                    return
+            except aiohttp.ClientError as e:
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise RuntimeError(f"B-hyve login network error: {e}") from e
+            except KeyError as e:
+                raise RuntimeError(f"B-hyve login response missing field: {e}") from e
 
     async def connect_ws(self):
         if self.ws and not self.ws.closed and self._token_for_ws == self.token:
