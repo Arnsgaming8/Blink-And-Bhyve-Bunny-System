@@ -1064,7 +1064,9 @@ async def handle_2fa_resend(request):
                 ok = await blink_obj.start()
                 if ok:
                     state.active_blink = blink_obj
-                    return web.json_response({"ok": True, "message": "Already logged in. No 2FA needed."})
+                    state.blink_instance = None
+                    state.twofa_pending = False
+                    return web.json_response({"ok": True, "message": "Login successful."})
             except BlinkTwoFARequiredError:
                 state.blink_instance = blink_obj
                 state.twofa_pending = False
@@ -1075,7 +1077,10 @@ async def handle_2fa_resend(request):
                 return web.json_response({"ok": False, "error": f"Blink login failed: {e}"}, status=500)
 
             errors.log_error("main.blink_2fa_resend", "Login succeeded unexpectedly (no 2FA)")
-            return web.json_response({"ok": False, "error": "Login succeeded (no 2FA needed)"}, status=400)
+            state.active_blink = blink_obj
+            state.blink_instance = None
+            state.twofa_pending = False
+            return web.json_response({"ok": True, "message": "Login successful."})
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
         return web.json_response({"ok": False, "error": str(e)}, status=500)

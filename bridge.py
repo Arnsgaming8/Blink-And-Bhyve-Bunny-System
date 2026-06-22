@@ -506,7 +506,6 @@ async def main():
                     msg = "Blink login failed. Check credentials or rate-limited."
                     print(f"  {msg}")
                     errors.log_error("main.blink_setup", msg + " Retrying...")
-                    state.blink_instance = blink
                     retry = 60
                     attempts = 0
                     while True:
