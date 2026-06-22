@@ -12,12 +12,13 @@ from aiohttp import web
 import errors
 import state
 
-HOST = CONFIG.get("host", "0.0.0.0")
-PORT = int(os.environ.get("PORT", os.environ.get("ERROR_PORT", 5000)))
 try:
     CONFIG = yaml.safe_load(open(state.get_config_path())) or {}
 except Exception:
     CONFIG = {}
+
+HOST = CONFIG.get("host", "0.0.0.0")
+PORT = int(os.environ.get("PORT", os.environ.get("ERROR_PORT", 5000)))
 
 SETUP_PAGE = r"""<!DOCTYPE html>
 <html lang="en">
@@ -338,12 +339,21 @@ setInterval(loadCameras, 10000);
 
 
 async def handle_index(request):
-    if not CONFIG or not CONFIG.get("bhyve_email"):
+    cfg = _load_config()
+    if not cfg or not cfg.get("bhyve_email"):
         return web.Response(text=SETUP_PAGE, content_type="text/html")
     return web.Response(text=PAGE, content_type="text/html")
 
 
+def _load_config():
+    try:
+        return yaml.safe_load(open(state.get_config_path())) or {}
+    except Exception:
+        return {}
+
+
 async def handle_setup(request):
+    global CONFIG
     try:
         data = await request.json()
     except Exception:
@@ -379,8 +389,9 @@ async def handle_setup(request):
     try:
         with open(state.get_config_path(), "w") as f:
             yaml.dump(cfg, f, default_flow_style=False)
+        CONFIG = cfg
         os.environ.pop("SETUP_MODE", None)
-        return web.json_response({"ok": True, "message": "Saved to config.yml. Restart to apply."})
+        return web.json_response({"ok": True, "message": "Saved to config.yml."})
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
@@ -421,8 +432,9 @@ async def handle_delete_error(request):
 
 
 async def handle_cameras(request):
+    cfg = _load_config()
     cameras = []
-    for cam in CONFIG.get("cameras", []):
+    for cam in cfg.get("cameras", []):
         cameras.append({
             "name": cam["name"],
             "zone": cam.get("zone", "?"),
