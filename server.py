@@ -28,58 +28,102 @@ SETUP_PAGE = r"""<!DOCTYPE html>
 <title>BABBS Setup</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-.container { width: 100%; max-width: 480px; padding: 24px; }
-h1 { font-size: 1.5rem; margin-bottom: 8px; color: #f0f6fc; }
-p { color: #8b949e; margin-bottom: 24px; font-size: 0.9rem; }
-label { display: block; margin-top: 16px; margin-bottom: 4px; font-size: 0.85rem; color: #8b949e; }
-input, select { width: 100%; padding: 10px 12px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.9rem; }
-input:focus { border-color: #58a6ff; outline: none; }
-.hint { font-size: 0.8rem; color: #8b949e; margin-top: 4px; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+.container { width: 100%; max-width: 520px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 32px; }
+h1 { font-size: 1.5rem; color: #f0f6fc; margin-bottom: 4px; }
+.subtitle { color: #8b949e; margin-bottom: 24px; font-size: 0.9rem; }
+.form-row { margin-bottom: 16px; }
+label { display: block; font-size: 0.8rem; color: #8b949e; margin-bottom: 4px; font-weight: 500; }
+input, select { width: 100%; padding: 10px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.9rem; }
+input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 2px #58a6ff20; }
+.hint { font-size: 0.75rem; color: #8b949e; margin-top: 4px; }
 .hint a { color: #58a6ff; }
-.btn { margin-top: 24px; padding: 10px 20px; background: #238636; border: none; border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer; width: 100%; }
+.btn { margin-top: 8px; padding: 10px 20px; background: #238636; border: none; border-radius: 6px; color: #fff; font-size: 0.9rem; cursor: pointer; width: 100%; font-weight: 500; }
 .btn:hover { background: #2ea043; }
-.status { margin-top: 12px; font-size: 0.85rem; color: #3fb950; text-align: center; }
-.status.err { color: #da3633; }
+.status { margin-top: 12px; font-size: 0.85rem; text-align: center; padding: 8px; border-radius: 6px; }
+.status.info { color: #3fb950; background: #23863610; }
+.status.err { color: #f85149; background: #da363310; }
+hr { border: none; border-top: 1px solid #21262d; margin: 20px 0; }
+.section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 16px; font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="container">
-<h1>BABBS Setup</h1>
-<p>Enter your credentials to get started.</p>
-<form id="setupForm">
-<label>Blink Email</label>
-<input type="email" id="blink_email" value="ajusunaina@gmail.com" required>
-<label>Blink Password</label>
-<input type="password" id="blink_password" required>
-<label>B-hyve Email</label>
-<input type="email" id="bhyve_email" value="ajusunaina@gmail.com" required>
-<label>B-hyve Password</label>
-<input type="password" id="bhyve_password" required>
-<label>Device ID</label>
-<input type="text" id="device_id" placeholder="e.g. 607220244f0c161d5a0d1648" required>
-<div class="hint">Run <code>list_devices.py</code> to find your device ID.</div>
-<label>Zone Number</label>
-<input type="number" id="zone_number" value="1" min="1">
-<label>Duration (seconds)</label>
-<input type="number" id="duration_seconds" value="180" min="1">
-<label>Camera Name</label>
-<input type="text" id="camera_name" placeholder="e.g. Back yard">
-<label>Poll Interval (seconds)</label>
-<input type="number" id="poll_interval_seconds" value="30" min="5">
-<label>Render API Key (optional)</label>
-<input type="password" id="render_api_key" placeholder="Leave blank for local-only">
-<div class="hint">Required to save credentials as environment variables. Get it from <a href="https://dashboard.render.com" target="_blank" rel="noopener" style="color:#58a6ff">Render dashboard</a> &rarr; Account &rarr; API Keys &rarr; Create API Key (scope: env_var_write).</div>
-<button type="submit" class="btn">Save &amp; Start</button>
-</form>
-<div class="status" id="setupStatus"></div>
+  <div class="card">
+    <h1>BABBS Setup</h1>
+    <p class="subtitle">Connect your Blink cameras and B-hyve sprinkler system.</p>
+
+    <div class="section-title">Blink Account</div>
+    <div class="form-row">
+      <label>Email</label>
+      <input type="email" id="blink_email" value="ajusunaina@gmail.com" required>
+    </div>
+    <div class="form-row">
+      <label>Password</label>
+      <input type="password" id="blink_password" required>
+    </div>
+
+    <hr>
+
+    <div class="section-title">B-hyve Account</div>
+    <div class="form-row">
+      <label>Email</label>
+      <input type="email" id="bhyve_email" value="ajusunaina@gmail.com" required>
+    </div>
+    <div class="form-row">
+      <label>Password</label>
+      <input type="password" id="bhyve_password" required>
+    </div>
+
+    <hr>
+
+    <div class="section-title">Sprinkler Setup</div>
+    <div class="form-row">
+      <label>Device ID</label>
+      <input type="text" id="device_id" placeholder="e.g. 607220244f0c161d5a0d1648" required>
+      <div class="hint">Run <code>list_devices.py</code> to find your device ID.</div>
+    </div>
+    <div style="display:flex;gap:12px;">
+      <div class="form-row" style="flex:1;">
+        <label>Zone Number</label>
+        <input type="number" id="zone_number" value="1" min="1">
+      </div>
+      <div class="form-row" style="flex:1;">
+        <label>Duration (seconds)</label>
+        <input type="number" id="duration_seconds" value="180" min="1">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Camera Name</label>
+      <input type="text" id="camera_name" placeholder="e.g. Back yard">
+      <div class="hint">Leave blank to configure cameras later in the dashboard.</div>
+    </div>
+
+    <hr>
+
+    <div class="section-title">Advanced</div>
+    <div style="display:flex;gap:12px;">
+      <div class="form-row" style="flex:1;">
+        <label>Poll Interval (seconds)</label>
+        <input type="number" id="poll_interval_seconds" value="30" min="5">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Render API Key <span class="hint">(optional)</span></label>
+      <input type="password" id="render_api_key" placeholder="Leave blank for local-only">
+      <div class="hint">Required to save credentials on Render. Get one from <a href="https://dashboard.render.com" target="_blank" rel="noopener">Render dashboard</a> &rarr; Account &rarr; API Keys.</div>
+    </div>
+
+    <button type="submit" class="btn" id="saveBtn">Save &amp; Start</button>
+    <div class="status" id="setupStatus"></div>
+  </div>
 </div>
 <script>
-document.getElementById("setupForm").onsubmit = async (e) => {
-  e.preventDefault();
-  const form = e.target;
+document.getElementById("saveBtn").onclick = async () => {
+  const ids = ["blink_email","blink_password","bhyve_email","bhyve_password","device_id","zone_number","duration_seconds","camera_name","poll_interval_seconds","render_api_key"];
   const data = {};
-  for (const el of form.elements) if (el.id) data[el.id] = el.value;
+  ids.forEach(id => { const el = document.getElementById(id); if (el) data[id] = el.value; });
   const status = document.getElementById("setupStatus");
   status.className = "status";
   status.textContent = "Saving...";
@@ -87,9 +131,9 @@ document.getElementById("setupForm").onsubmit = async (e) => {
     const r = await fetch("/api/setup", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data) });
     const d = await r.json();
     if (d.ok) {
-      status.textContent = d.message || "Saved! Restarting service...";
-      status.className = "status";
-      setTimeout(() => { fetch("/api/restart", {method: "POST"}); location.href = "/"; }, 2000);
+      status.textContent = "Saved! Redirecting to dashboard...";
+      status.className = "status info";
+      setTimeout(() => { location.href = "/"; }, 1500);
     } else {
       status.textContent = "Error: " + (d.error || "unknown");
       status.className = "status err";
@@ -99,6 +143,7 @@ document.getElementById("setupForm").onsubmit = async (e) => {
     status.className = "status err";
   }
 };
+document.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("saveBtn").click(); });
 </script>
 </body>
 </html>"""
@@ -108,111 +153,196 @@ PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BABBS</title>
+<title>BABBS Dashboard</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; display: flex; min-height: 100vh; }
-.sidebar { width: 280px; background: #161b22; border-right: 1px solid #30363d; padding: 20px; display: flex; flex-direction: column; overflow-y: auto; }
-.main { flex: 1; padding: 20px; overflow-y: auto; }
-h1 { font-size: 1.3rem; color: #f0f6fc; margin-bottom: 16px; }
-h2 { font-size: 1rem; color: #f0f6fc; margin-bottom: 8px; margin-top: 20px; }
-.section { margin-bottom: 16px; }
-label { display: block; font-size: 0.8rem; color: #8b949e; margin-bottom: 4px; margin-top: 8px; }
-input, select, textarea { width: 100%; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 4px; color: #c9d1d9; font-size: 0.85rem; }
-input:focus { border-color: #58a6ff; outline: none; }
-textarea { font-family: monospace; font-size: 0.8rem; resize: vertical; min-height: 60px; }
-.btn { padding: 6px 14px; background: #238636; border: none; border-radius: 4px; color: #fff; font-size: 0.8rem; cursor: pointer; display: inline-block; }
-.btn:hover { background: #2ea043; }
-.btn.danger { background: #da3633; }
-.btn.danger:hover { background: #f85149; }
-.btn.small { padding: 3px 10px; font-size: 0.75rem; }
-.btn-group { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
-.status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
-.status-badge.green { background: #23863620; color: #3fb950; border: 1px solid #3fb950; }
-.status-badge.red { background: #da363320; color: #f85149; border: 1px solid #f85149; }
-.status-badge.yellow { background: #d2992220; color: #d29922; border: 1px solid #d29922; }
-.camera-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #21262d; }
+
+/* Layout */
+.sidebar { width: 300px; background: #161b22; border-right: 1px solid #30363d; padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+.main { flex: 1; padding: 24px; overflow-y: auto; }
+
+/* Typography */
+.app-title { font-size: 1.4rem; font-weight: 700; color: #f0f6fc; letter-spacing: -0.5px; }
+.app-subtitle { font-size: 0.75rem; color: #8b949e; margin-top: 2px; }
+.section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.8px; color: #8b949e; margin-bottom: 10px; font-weight: 600; }
+
+/* Cards */
+.card { background: #0d1117; border: 1px solid #21262d; border-radius: 8px; padding: 14px; }
+.card-title { font-size: 0.8rem; color: #8b949e; margin-bottom: 8px; }
+
+/* Status grid */
+.status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { text-align: center; padding: 10px 6px; background: #161b22; border-radius: 6px; }
+.stat-value { font-size: 1.1rem; font-weight: 600; color: #f0f6fc; }
+.stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #8b949e; margin-top: 2px; }
+.stat-value.green { color: #3fb950; }
+.stat-value.red { color: #f85149; }
+.stat-value.yellow { color: #d29922; }
+.stat-value.blue { color: #58a6ff; }
+
+/* Forms */
+label { display: block; font-size: 0.75rem; color: #8b949e; margin-bottom: 4px; margin-top: 10px; }
+input, select { width: 100%; padding: 8px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; font-size: 0.85rem; }
+input:focus { border-color: #58a6ff; outline: none; box-shadow: 0 0 0 2px #58a6ff20; }
+
+/* Buttons */
+.btn { padding: 7px 16px; border: none; border-radius: 6px; font-size: 0.8rem; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+.btn-primary { background: #238636; color: #fff; }
+.btn-primary:hover { background: #2ea043; }
+.btn-danger { background: #da3633; color: #fff; }
+.btn-danger:hover { background: #f85149; }
+.btn-outline { background: transparent; color: #c9d1d9; border: 1px solid #30363d; }
+.btn-outline:hover { border-color: #8b949e; }
+.btn-sm { padding: 4px 10px; font-size: 0.75rem; }
+.btn-group { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+.badge-green { background: #23863620; color: #3fb950; border: 1px solid #3fb950; }
+.badge-red { background: #da363320; color: #f85149; border: 1px solid #f85149; }
+.badge-yellow { background: #d2992220; color: #d29922; border: 1px solid #d29922; }
+
+/* Cameras */
+.camera-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #21262d; }
 .camera-row:last-child { border-bottom: none; }
-.camera-name { font-weight: 500; }
-.camera-zone { color: #8b949e; font-size: 0.8rem; }
-.camera-controls { display: flex; gap: 4px; align-items: center; }
-.error-entry { padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 0.8rem; }
+.camera-info { display: flex; flex-direction: column; gap: 2px; }
+.camera-name { font-weight: 500; font-size: 0.9rem; }
+.camera-zone { color: #8b949e; font-size: 0.75rem; }
+.camera-controls { display: flex; gap: 6px; align-items: center; }
+
+/* Errors */
+.error-entry { padding: 8px 0; border-bottom: 1px solid #21262d; display: flex; gap: 8px; align-items: flex-start; }
 .error-entry:last-child { border-bottom: none; }
-.error-time { color: #8b949e; font-size: 0.75rem; }
-.error-source { color: #58a6ff; font-weight: 500; }
-.error-msg { color: #c9d1d9; }
-.error-del { cursor: pointer; color: #da3633; font-size: 0.75rem; margin-left: 8px; }
-#errorList { max-height: 400px; overflow-y: auto; }
-.water-active { color: #3fb950; font-weight: 600; }
-.twofa-status { margin-top: 8px; font-size: 0.85rem; color: #8b949e; }
+.error-content { flex: 1; min-width: 0; }
+.error-time { color: #8b949e; font-size: 0.7rem; }
+.error-source { color: #58a6ff; font-weight: 500; font-size: 0.75rem; }
+.error-msg { color: #c9d1d9; font-size: 0.8rem; word-break: break-word; margin-top: 2px; }
+.error-del { cursor: pointer; color: #484f58; font-size: 0.8rem; padding: 2px 4px; border-radius: 4px; flex-shrink: 0; }
+.error-del:hover { color: #f85149; background: #da363320; }
+#errorList { max-height: 500px; overflow-y: auto; }
+
+/* 2FA */
+.twofa-row { display: flex; gap: 6px; }
+.twofa-row input { flex: 1; }
+.twofa-status { margin-top: 6px; font-size: 0.8rem; }
+
+/* Utility */
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.text-muted { color: #8b949e; font-size: 0.8rem; }
+.text-sm { font-size: 0.75rem; }
 </style>
 </head>
 <body>
 <div class="sidebar">
-  <h1>BABBS</h1>
-  <div class="section" id="statusSection">
-    <div>Status: <span id="statusBadge" class="status-badge green">Running</span></div>
-    <div style="margin-top:6px;font-size:0.8rem;color:#8b949e">Last poll: <span id="lastPoll">-</span></div>
-    <div style="font-size:0.8rem;color:#8b949e">Errors: <span id="errorCount">0</span></div>
-    <div style="font-size:0.8rem;color:#8b949e">Water: <span id="waterActive">No</span></div>
+  <div>
+    <div class="app-title">BABBS</div>
+    <div class="app-subtitle">Blink &rarr; B-hyve Bridge</div>
   </div>
 
-  <div class="section">
-    <h2>Cameras</h2>
-    <div id="cameraList"></div>
-  </div>
-
-  <div class="section">
-    <h2>2FA</h2>
-    <input type="text" id="twofaInput" placeholder="Enter 6-digit code">
-    <div class="btn-group">
-      <button class="btn small" onclick="submit2FA()">Submit</button>
-      <button class="btn small" onclick="resend2FA()">Resend Code</button>
+  <div>
+    <div class="section-label">System Status</div>
+    <div class="card">
+      <div class="status-grid">
+        <div class="stat">
+          <div class="stat-value" id="statBridge">-</div>
+          <div class="stat-label">Bridge</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statCameras">-</div>
+          <div class="stat-label">Cameras</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statWater">-</div>
+          <div class="stat-label">Water</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="statErrors">0</div>
+          <div class="stat-label">Errors</div>
+        </div>
+      </div>
+      <div class="mt-8 text-sm text-muted">Last poll: <span id="lastPoll">-</span></div>
     </div>
-    <div class="twofa-status" id="twofaStatus"></div>
   </div>
 
-  <div class="section">
-    <h2>Manual Water</h2>
-    <label>Zone</label>
-    <input type="number" id="manualZone" value="1" min="1">
-    <label>Duration (s)</label>
-    <input type="number" id="manualDuration" value="60" min="1">
-    <button class="btn" onclick="manualWater()">Water Now</button>
-    <div style="margin-top:6px;font-size:0.8rem;color:#8b949e" id="manualStatus"></div>
-  </div>
-
-  <div class="section">
-    <h2>Actions</h2>
-    <div class="btn-group">
-      <button class="btn small danger" onclick="clearErrors()">Clear Errors</button>
+  <div>
+    <div class="section-label">Cameras</div>
+    <div class="card" id="cameraList">
+      <div class="text-muted text-sm">Loading...</div>
     </div>
+  </div>
+
+  <div>
+    <div class="section-label">Two-Factor Auth</div>
+    <div class="card">
+      <div class="twofa-row">
+        <input type="text" id="twofaInput" placeholder="6-digit code">
+        <button class="btn btn-primary btn-sm" onclick="submit2FA()">Send</button>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-outline btn-sm" onclick="resend2FA()">Resend Code</button>
+      </div>
+      <div class="twofa-status text-muted mt-8" id="twofaStatus"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">Manual Watering</div>
+    <div class="card">
+      <div style="display:flex;gap:8px;align-items:end;">
+        <div style="flex:1">
+          <label>Zone</label>
+          <input type="number" id="manualZone" value="1" min="1">
+        </div>
+        <div style="flex:1">
+          <label>Duration (s)</label>
+          <input type="number" id="manualDuration" value="60" min="1">
+        </div>
+      </div>
+      <button class="btn btn-primary mt-8" onclick="manualWater()" style="width:100%">Start Watering</button>
+      <div class="text-sm text-muted mt-8" id="manualStatus"></div>
+    </div>
+  </div>
+
+  <div>
+    <button class="btn btn-danger btn-sm" onclick="clearErrors()" style="width:100%">Clear Error Log</button>
   </div>
 </div>
 
 <div class="main">
-  <h2>Error Log</h2>
-  <div id="errorList"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div class="section-label" style="margin-bottom:0">Error Log</div>
+    <span class="text-sm text-muted">Last 50 errors</span>
+  </div>
+  <div id="errorList" class="card">
+    <div class="text-muted text-sm">No errors logged.</div>
+  </div>
 </div>
 
 <script>
 function _nocache() { return "?_=" + Date.now(); }
 
+function setStat(id, text, color) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = "stat-value" + (color ? " " + color : "");
+}
+
 async function poll() {
   try {
     const r = await fetch("/api/status" + _nocache());
     const d = await r.json();
-    const badge = document.getElementById("statusBadge");
-    badge.textContent = d.status || "Unknown";
-    badge.className = "status-badge " + (d.status === "running" ? "green" : "red");
+    const status = d.status || "Unknown";
+    const running = status === "running";
+    setStat("statBridge", running ? "Online" : "Offline", running ? "green" : "red");
+    setStat("statCameras", d.blink_connected ? "Online" : "Offline", d.blink_connected ? "green" : "red");
+    setStat("statWater", d.water_active ? "Active" : "Idle", d.water_active ? "yellow" : "blue");
+    setStat("statErrors", d.error_count ?? "?");
     document.getElementById("lastPoll").textContent = d.last_poll ? new Date(d.last_poll).toLocaleString() : "-";
-    document.getElementById("errorCount").textContent = d.error_count ?? "?";
-    document.getElementById("waterActive").textContent = d.water_active ? "Yes" : "No";
-    if (d.water_active) document.getElementById("waterActive").className = "water-active";
-    else document.getElementById("waterActive").className = "";
   } catch (e) {
-    document.getElementById("statusBadge").textContent = "Offline";
-    document.getElementById("statusBadge").className = "status-badge red";
+    setStat("statBridge", "Offline", "red");
+    setStat("statCameras", "-", "");
   }
 }
 
@@ -221,18 +351,27 @@ async function loadCameras() {
     const r = await fetch("/api/cameras" + _nocache());
     const list = await r.json();
     const el = document.getElementById("cameraList");
+    if (list.length === 0) {
+      el.innerHTML = '<div class="text-muted text-sm">No cameras configured.</div>';
+      return;
+    }
     el.innerHTML = "";
     for (const c of list) {
       const row = document.createElement("div");
       row.className = "camera-row";
-      row.innerHTML = `<span class="camera-name">${c.name}</span><span class="camera-zone">Zone ${c.zone}</span>
+      row.innerHTML = `<div class="camera-info">
+          <div class="camera-name">${c.name}</div>
+          <div class="camera-zone">Zone ${c.zone}</div>
+        </div>
         <div class="camera-controls">
-          <span class="status-badge ${c.arm ? 'green' : 'red'}">${c.arm ? 'Armed' : 'Disarmed'}</span>
-          <button class="btn small" onclick="toggleArm('${c.name}', ${!c.arm})">Toggle</button>
+          <span class="badge ${c.arm ? 'badge-green' : 'badge-red'}">${c.arm ? 'Armed' : 'Disarmed'}</span>
+          <button class="btn btn-outline btn-sm" onclick="toggleArm('${c.name}', ${!c.arm})">${c.arm ? 'Disarm' : 'Arm'}</button>
         </div>`;
       el.appendChild(row);
     }
-  } catch (e) {}
+  } catch (e) {
+    document.getElementById("cameraList").innerHTML = '<div class="text-muted text-sm">Failed to load cameras.</div>';
+  }
 }
 
 async function loadErrors() {
@@ -242,16 +381,17 @@ async function loadErrors() {
     const el = document.getElementById("errorList");
     el.innerHTML = "";
     if (list.length === 0) {
-      el.innerHTML = '<div style="color:#8b949e;font-size:0.85rem">No errors logged.</div>';
+      el.innerHTML = '<div class="text-muted text-sm">No errors logged.</div>';
       return;
     }
     for (const e of list) {
       const div = document.createElement("div");
       div.className = "error-entry";
-      div.innerHTML = `<span class="error-time">${new Date(e.timestamp).toLocaleString()}</span>
-        <span class="error-source">[${e.source}]</span>
-        <span class="error-msg">${e.message}</span>
-        <span class="error-del" onclick="deleteError(${e.id})">&#10005;</span>`;
+      div.innerHTML = `<div class="error-content">
+          <div><span class="error-time">${new Date(e.timestamp).toLocaleString()}</span> <span class="error-source">[${e.source}]</span></div>
+          <div class="error-msg">${e.message}</div>
+        </div>
+        <span class="error-del" onclick="deleteError(${e.id})" title="Delete">&times;</span>`;
       el.appendChild(div);
     }
   } catch (e) {}
@@ -267,8 +407,9 @@ async function toggleArm(name, arm) {
 async function submit2FA() {
   const pin = document.getElementById("twofaInput").value.trim();
   const status = document.getElementById("twofaStatus");
-  if (!pin) { status.textContent = "Enter the code from your email."; return; }
+  if (!pin) { status.textContent = "Enter the code from your email."; status.style.color = "#f85149"; return; }
   status.textContent = "Submitting...";
+  status.style.color = "#8b949e";
   try {
     const r = await fetch("/api/blink/2fa", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({pin}) });
     const d = await r.json();
@@ -277,11 +418,11 @@ async function submit2FA() {
       status.style.color = "#d29922";
     } else {
       status.textContent = "Error: " + (d.error || "unknown");
-      status.style.color = "#da3633";
+      status.style.color = "#f85149";
     }
   } catch (e) {
     status.textContent = "Network error: " + e.message;
-    status.style.color = "#da3633";
+    status.style.color = "#f85149";
   }
 }
 
@@ -297,11 +438,11 @@ async function resend2FA() {
       status.style.color = "#58a6ff";
     } else {
       status.textContent = JSON.stringify(d);
-      status.style.color = "#da3633";
+      status.style.color = "#f85149";
     }
   } catch (e) {
     status.textContent = "Network error: " + e.message;
-    status.style.color = "#da3633";
+    status.style.color = "#f85149";
   }
 }
 
@@ -309,13 +450,15 @@ async function manualWater() {
   const zone = parseInt(document.getElementById("manualZone").value);
   const duration = parseInt(document.getElementById("manualDuration").value);
   const status = document.getElementById("manualStatus");
-  status.textContent = "Starting...";
+  status.textContent = "Starting watering...";
   try {
     const r = await fetch("/api/water", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({zone, duration}) });
     const d = await r.json();
     status.textContent = d.message || "Done";
+    status.style.color = "#3fb950";
   } catch (e) {
     status.textContent = "Error: " + e.message;
+    status.style.color = "#f85149";
   }
 }
 
