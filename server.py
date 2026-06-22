@@ -1047,7 +1047,8 @@ async def handle_2fa_resend(request):
         return web.json_response({"ok": False, "error": "No Blink credentials configured"}, status=400)
 
     try:
-        from blinkpy import Blink, api
+        from blinkpy.blinkpy import Blink
+        from blinkpy import api
         from blinkpy.auth import Auth, BlinkTwoFARequiredError
         from blinkpy.helpers.pkce import generate_pkce_pair
         from bridge import _load_blink_auth
