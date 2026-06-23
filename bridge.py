@@ -36,9 +36,12 @@ async def _patched_signin(auth, email, password, csrf_token):
     response = await auth.session.post(
         OAUTH_SIGNIN_URL, headers=headers, data=data, allow_redirects=False
     )
-    if response.status in (412, 202):
+    status = response.status
+    body = await response.text()
+    print(f"  oauth_signin response: status={status}, body={body[:200]}")
+    if status in (412, 202):
         return "2FA_REQUIRED"
-    if response.status == 302:
+    if status == 302:
         return "SUCCESS"
     return None
 
