@@ -1066,6 +1066,8 @@ async def handle_2fa_resend(request):
                     state.active_blink = blink_obj
                     state.blink_instance = None
                     state.twofa_pending = False
+                    from bridge import _save_blink_auth
+                    await _save_blink_auth(blink_obj.auth)
                     return web.json_response({"ok": True, "message": "Login successful."})
             except BlinkTwoFARequiredError:
                 state.blink_instance = blink_obj
@@ -1080,6 +1082,8 @@ async def handle_2fa_resend(request):
             state.active_blink = blink_obj
             state.blink_instance = None
             state.twofa_pending = False
+            from bridge import _save_blink_auth
+            await _save_blink_auth(blink_obj.auth)
             return web.json_response({"ok": True, "message": "Login successful."})
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)

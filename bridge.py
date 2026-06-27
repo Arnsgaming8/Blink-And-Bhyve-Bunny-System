@@ -109,7 +109,7 @@ LAST_MOTION_FILE = os.path.join(os.path.dirname(__file__), ".last_motion")
 CONFIG_PATH = state.get_config_path()
 
 
-def _save_blink_auth(auth):
+async def _save_blink_auth(auth):
     import json
     login_data = auth.login_attributes
     data = {k: login_data.get(k) for k in ("refresh_token", "hardware_id", "host", "region_id", "account_id", "user_id")}
@@ -131,22 +131,21 @@ def _save_blink_auth(auth):
     service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
     if api_key and service_id:
         try:
-            import aiohttp
-            async def _save():
-                async with aiohttp.ClientSession() as session:
-                    async with session.put(
-                        f"https://api.render.com/v1/services/{service_id}/env-vars/BLINK_AUTH",
-                        headers={"Authorization": f"Bearer {api_key}"},
-                        json={"key": "BLINK_AUTH", "value": json.dumps(data)},
-                    ) as resp:
-                        if resp.status == 200:
-                            print("  Blink auth saved to Render env var")
-                        else:
-                            text = await resp.text()
-                            print(f"  Failed to save blink auth to Render: {resp.status} {text[:200]}")
-            asyncio.create_task(_save())
+            async with aiohttp.ClientSession() as session:
+                async with session.put(
+                    f"https://api.render.com/v1/services/{service_id}/env-vars/BLINK_AUTH",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={"key": "BLINK_AUTH", "value": json.dumps(data)},
+                ) as resp:
+                    if resp.status == 200:
+                        print("  Blink auth saved to Render env var")
+                    else:
+                        text = await resp.text()
+                        print(f"  Failed to save blink auth to Render: {resp.status} {text[:200]}")
         except Exception as e:
             print(f"  Failed to save blink auth to Render: {e}")
+    elif api_key and not service_id:
+        print("  RENDER_SERVICE_ID not set — cannot persist auth via Render API")
 
 
 def _load_blink_auth():
@@ -388,6 +387,7 @@ class BlinkWatcher:
                     if ok:
                         state.blink_instance = None
                         state.active_blink = self.blink
+                        await _save_blink_auth(self.blink.auth)
                         print("  2FA re-authentication successful")
                         break
                 except Exception as e:
@@ -595,7 +595,7 @@ async def main():
 
             if login_ok:
                 state.active_blink = blink
-                _save_blink_auth(blink.auth)
+                await _save_blink_auth(blink.auth)
                 print("  Blink login successful")
             elif login_ok is None:
                 msg = "Blink requires two-factor authentication."
@@ -612,7 +612,7 @@ async def main():
                     try:
                         if await blink.start():
                             state.active_blink = blink
-                            _save_blink_auth(blink.auth)
+                            await _save_blink_auth(blink.auth)
                             print("  Blink login successful on retry")
                             break
                     except BlinkTwoFARequiredError:
@@ -642,7 +642,7 @@ async def main():
                             continue
                         state.blink_instance = None
                         state.active_blink = blink
-                        _save_blink_auth(blink.auth)
+                        await _save_blink_auth(blink.auth)
                         errors.log_error("main.blink_2fa", "2FA completed successfully")
                         print("  2FA completed successfully")
                         break
