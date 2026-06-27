@@ -1464,29 +1464,39 @@ async def _sync_cameras_config(event_label):
 
 
 async def handle_cameras(request):
-    from bridge import CAMERAS
-    blink = state.active_blink
-    connected = bool(blink and blink.cameras)
-    result = []
-    for cam in CAMERAS:
-        name = cam["name"]
-        armed = cam.get("arm", True)
-        if connected and blink.cameras.get(name) is not None:
-            blink_cam = blink.cameras[name]
-            live = bool(getattr(blink_cam, "arm", True))
-            last_user = state.last_user_arm.get(name, 0)
-            if time.time() - last_user > 60:
-                armed = live
-            else:
-                armed = cam.get("arm", True)
-        result.append({
-            "name": name,
-            "zone": cam["zone"],
-            "duration": cam.get("duration_seconds", 3),
-            "armed": armed,
-            "no_water": cam.get("no_water", False),
-        })
-    return web.json_response({"connected": connected, "cameras": result})
+    try:
+        from bridge import CAMERAS
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": f"import bridge.CAMERAS failed: {e}"}, status=500)
+    try:
+        blink = state.active_blink
+        connected = bool(blink and blink.cameras)
+        result = []
+        for cam in CAMERAS:
+            name = cam["name"]
+            armed = cam.get("arm", True)
+            if connected and blink.cameras.get(name) is not None:
+                blink_cam = blink.cameras[name]
+                live = bool(getattr(blink_cam, "arm", True))
+                last_user = state.last_user_arm.get(name, 0)
+                if time.time() - last_user > 60:
+                    armed = live
+                else:
+                    armed = cam.get("arm", True)
+            result.append({
+                "name": name,
+                "zone": cam["zone"],
+                "duration": cam.get("duration_seconds", 3),
+                "armed": armed,
+                "no_water": cam.get("no_water", False),
+            })
+        return web.json_response({"connected": connected, "cameras": result})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_camera_arm(request):
