@@ -1,6 +1,7 @@
 import asyncio
 import os
 
+import aiohttp
 import yaml
 
 import state
@@ -110,15 +111,32 @@ async def bridge_background_task(app):
 
     app["bridge_task"] = asyncio.create_task(_run_bridge())
 
+    # Keep Render free tier alive — ping every 14 min
+    async def _keep_alive():
+        url = os.environ.get("RENDER_EXTERNAL_URL")
+        if not url:
+            return
+        while True:
+            await asyncio.sleep(840)
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.get(url, timeout=10) as r:
+                        print(f"  Keep-alive ping: {r.status}")
+            except Exception as e:
+                print(f"  Keep-alive ping failed: {e}")
+
+    app["keep_alive_task"] = asyncio.create_task(_keep_alive())
+
 
 async def cleanup_bridge(app):
-    task = app.get("bridge_task")
-    if task:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+    for key in ("bridge_task", "keep_alive_task"):
+        task = app.get(key)
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 def main():
