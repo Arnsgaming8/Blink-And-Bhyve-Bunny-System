@@ -515,8 +515,17 @@ async def process_2fa_code(blink, pin):
     await auth._process_token_data(token_data)
     try:
         blink.setup_urls()
-        await blink.get_homescreen()
-        await blink.setup_post_verify()
+        for attempt in range(3):
+            try:
+                await blink.get_homescreen()
+                await blink.setup_post_verify()
+                break
+            except Exception:
+                if attempt < 2:
+                    print(f"  Blink API error, retrying setup... ({attempt+1})")
+                    await asyncio.sleep(3)
+                else:
+                    raise
     except Exception as e:
         errors.log_error("blink_2fa_key", f"Post-2FA setup failed: {e}", exc_info=True)
         print(f"  Post-2FA setup failed: {e}")
