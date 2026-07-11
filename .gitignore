@@ -7,3 +7,6 @@ config.yml
 dist/
 build/
 *.spec
+test_blink_connect.py
+*_test.py
+tests/

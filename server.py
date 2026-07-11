@@ -814,7 +814,6 @@ async function pollStatus() {
   try {
     const r = await fetch("/api/status" + _nocache());
     const data = await r.json();
-    updateConnCards(data);
     const el = document.getElementById("pollStatus");
     if (data.last_poll && data.poll_interval) {
       const last = new Date(data.last_poll).getTime();
