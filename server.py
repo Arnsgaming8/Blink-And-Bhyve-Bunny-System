@@ -2001,6 +2001,45 @@ async def handle_logout_clear(request):
     return web.json_response({"ok": True, "message": "Credentials cleared. Restart to enter setup mode."})
 
 
+async def _kick_blink_auth(email: str, password: str):
+    """Fire-and-forget: attempt immediate Blink auth after /api/reauth saves new
+    credentials. The bridge's main loop would otherwise wait up to
+    POLL_INTERVAL seconds (typically 30s) plus _connect_retry_delay (60s), so
+    without this kick the 2FA banner cannot appear inside the JS 5-second poll.
+    On success: state.active_blink set, bridge will adopt it next loop tick.
+    On 2FA:    state.blink_instance set, JS 5s poll surfaces the banner
+               immediately (and the bridge's 30s recheck would have triggered
+               handle_2fa_background anyway).
+    On error:  state left untouched, bridge normal cycle retries as fallback.
+    """
+    try:
+        from blinkpy.blinkpy import Blink
+        from blinkpy.auth import Auth, BlinkTwoFARequiredError
+        from bridge import _load_blink_auth, _save_blink_auth
+
+        async with aiohttp.ClientSession() as session:
+            auth_data = {"username": email, "password": password}
+            auth_data.update(_load_blink_auth())
+            b = Blink(motion_interval=360)
+            b.auth = Auth(auth_data, session=session)
+            try:
+                ok = await b.start()
+                if ok:
+                    state.active_blink = b
+                    state.blink_instance = None
+                    state.twofa_pending = False
+                    await _save_blink_auth(b.auth)
+                    errors.log_error("reauth.kick", "Blink re-auth succeeded via /api/reauth")
+                    return
+            except BlinkTwoFARequiredError:
+                state.blink_instance = b
+                state.twofa_pending = False
+                errors.log_error("reauth.kick", "Blink 2FA required via /api/reauth — banner should appear")
+                return
+    except Exception as e:
+        errors.log_error("reauth.kick", f"Immediate Blink auth failed: {e}", exc_info=True)
+
+
 async def handle_reauth(request):
     import yaml
     try:
@@ -2043,6 +2082,17 @@ async def handle_reauth(request):
     os.environ[blink_key] = email
     os.environ[blink_pass_key] = password
 
+    if account == "blink" and state.active_blink is None and state.blink_instance is None:
+        # Trigger immediate Blink auth in the background so the 2FA banner can
+        # appear within the JS 5-second poll cadence instead of waiting for the
+        # bridge's next POLL_INTERVAL-windowed retry (typically 30s+).
+        # Guard prevents racing with an in-flight session (also matches the
+        # intent: only kick after the user has just logged out Blink).
+        try:
+            asyncio.ensure_future(_kick_blink_auth(email, password))
+        except Exception as kick_err:
+            errors.log_error("reauth", f"Failed to schedule fast auth: {kick_err}")
+
     api_key = os.environ.get("RENDER_API_KEY")
     if api_key:
         service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
@@ -2060,8 +2110,12 @@ async def handle_reauth(request):
                 except Exception:
                     pass
 
-    errors.log_error("reauth", f"{account} credentials updated — reconnect on next retry")
-    return web.json_response({"ok": True, "message": f"{account} credentials saved. Bridge will reconnect on next retry."})
+    if account == "blink":
+        msg = "Blink credentials saved. Connecting now \u2014 if 2FA is required, the banner will appear within 5 seconds."
+    else:
+        msg = f"{account} credentials saved. Bridge will reconnect on next retry."
+    errors.log_error("reauth", f"{account} credentials updated")
+    return web.json_response({"ok": True, "message": msg})
 
 
 @web.middleware
