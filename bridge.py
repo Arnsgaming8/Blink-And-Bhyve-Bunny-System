@@ -229,6 +229,7 @@ async def handle_2fa_background(blink):
                 state.blink_instance = blink
     finally:
         state.reauth_in_progress = False
+        state.handle_2fa_task = None
 
 
 async def main():
@@ -279,12 +280,17 @@ async def main():
                                 pclass = get_sprinkler_provider(ptype)
                                 inst = pclass(pconf, session=session)
                                 sprinkler_instances[pname] = inst
+                                state.sprinkler_instances_by_name[pname] = inst
                                 PROVIDER_STATUS[pname] = {"kind": "sprinkler", "type": ptype, "connected": False}
                                 print(f"  Sprinkler provider '{pname}' ({ptype}) created")
                             except ValueError:
                                 print(f"  WARNING: Unknown provider '{pname}' (type '{pconf.get('type', '')}')")
 
                     _providers_initialized = True
+                    # First connect attempt happens immediately so the dashboard
+                    # connection cards update within ~15s of bridge startup instead
+                    # of waiting for the next POLL_INTERVAL tick.
+                    _last_connect_attempt.clear()
 
                 # Retry connecting providers that aren't connected yet
                 for cam_name, cam_inst in camera_instances.items():
@@ -301,10 +307,16 @@ async def main():
                         if ok:
                             PROVIDER_STATUS.setdefault(cam_name, {})["connected"] = True
                             PROVIDER_STATUS.setdefault(cam_name, {}).pop("error", None)
+                            errors.log_error("bridge.connect", f"{cam_name} connected")
                             print(f"  {cam_name} connected")
                         elif state.blink_instance is not None:
                             print(f"  {cam_name}: 2FA pending")
-                            asyncio.ensure_future(handle_2fa_background(state.blink_instance))
+                            # Only spawn one 2FA handler at a time. Tasks created
+                            # via ensure_future get auto-names like "Task-47", so
+                            # we can't dedup on get_name(); we instead keep a
+                            # single tracked reference in state.
+                            if state.handle_2fa_task is None or state.handle_2fa_task.done():
+                                state.handle_2fa_task = asyncio.ensure_future(handle_2fa_background(state.blink_instance))
                     except asyncio.TimeoutError:
                         PROVIDER_STATUS.setdefault(cam_name, {})["error"] = "connect timed out"
                         errors.log_error("bridge", f"{cam_name} connect timed out")
@@ -328,12 +340,15 @@ async def main():
                         if ok:
                             PROVIDER_STATUS.setdefault(sp_name, {})["connected"] = True
                             PROVIDER_STATUS.setdefault(sp_name, {}).pop("error", None)
+                            errors.log_error("bridge.connect", f"{sp_name} connected")
                             print(f"  {sp_name} connected")
                     except asyncio.TimeoutError:
                         PROVIDER_STATUS.setdefault(sp_name, {})["error"] = "connect timed out"
+                        errors.log_error("bridge.connect", f"{sp_name} connect timed out")
                         print(f"  {sp_name}: connect timed out")
                     except Exception as e:
                         PROVIDER_STATUS.setdefault(sp_name, {})["error"] = str(e)[:120]
+                        errors.log_error("bridge.connect", f"{sp_name} connect error: {e}")
                         print(f"  {sp_name}: connect error: {e}")
 
                 camera_events: list[tuple[str, CameraEvent]] = []

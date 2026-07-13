@@ -1973,12 +1973,17 @@ async def handle_logout(request):
         errors.log_error("logout", "Blink logged out")
 
     if "bhyve" in accounts:
+        # B-hyve only uses short-lived tokens obtained via /v1/session; clearing
+        # credentials and the in-memory token is sufficient to log out. The
+        # bridge.main() loop registers active sprinkler instances via
+        # state.sprinkler_instances_by_name because sprinkler_instances is a
+        # local variable in bridge.main() and not a module attribute.
         try:
-            from bridge import bhyve_client, BHYVE_WS
-            if bhyve_client:
-                await bhyve_client.disconnect()
-        except Exception:
-            pass
+            for sp_name, sp_inst in (state.sprinkler_instances_by_name or {}).items():
+                sp_inst.token = None
+                sp_inst._connected = False
+        except Exception as e:
+            errors.log_error("logout.bhyve_cleanup", str(e))
         errors.log_error("logout", "B-hyve logged out")
 
     return web.json_response({"ok": True})

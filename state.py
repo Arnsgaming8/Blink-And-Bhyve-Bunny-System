@@ -1,4 +1,5 @@
 import os
+import asyncio
 
 
 blink_instance = None
@@ -8,6 +9,8 @@ twofa_pin = None
 reauth_in_progress = False
 last_poll = None
 last_user_arm = {}
+handle_2fa_task: "asyncio.Task | None" = None
+sprinkler_instances_by_name: dict = {}
 
 
 def get_config_path():

@@ -27,17 +27,24 @@ class BHyveSprinkler(SprinklerProvider):
         self._token_for_ws: str | None = None
         self._connected = False
 
-        email = config.get("email") or config.get("bhyve_email") or ""
-        password = config.get("password") or config.get("bhyve_password") or ""
-        self._email = email
-        self._password = password
-
-        device_id = config.get("device_id") or config.get("device_id") or ""
-        if not device_id and "device_id" in config:
-            device_id = config["device_id"]
-        self.device_id = device_id
+        self._email = config.get("email") or config.get("bhyve_email") or ""
+        self._password = config.get("password") or config.get("bhyve_password") or ""
+        self.device_id = config.get("device_id") or config.get("bhyve_device_id") or ""
+        self._creds_warned = False
 
     async def connect(self) -> bool:
+        if not self._email or not self._password or not self.device_id:
+            if not self._creds_warned:
+                missing = []
+                if not self._email:
+                    missing.append("email")
+                if not self._password:
+                    missing.append("password")
+                if not self.device_id:
+                    missing.append("device_id")
+                errors.log_error("bhyve.connect", f"Missing B-hyve {', '.join(missing)} -- cannot connect")
+                self._creds_warned = True
+            return False
         try:
             payload = {"session": {"email": self._email, "password": self._password}}
             for attempt in range(3):
@@ -56,6 +63,7 @@ class BHyveSprinkler(SprinklerProvider):
                         data = json.loads(text)
                         self.token = data["orbit_session_token"]
                         self._connected = True
+                        self._creds_warned = False  # reset on success
                         return True
                 except aiohttp.ClientError as e:
                     if attempt < 2:

@@ -15,12 +15,26 @@ from state import get_config_path
 from . import CameraProvider, CameraEvent, register
 
 # --- Monkey-patches for blinkpy (shipped to Render) ---
+# --- Monkey-patches for blinkpy (shipped to Render) ---
+# Use *args/**kwargs so the patches work across blinkpy signature changes
+# (0.25.5 -> 0.25.7+).
 import blinkpy.api as _bapi
 
 _orig_signin = _bapi.oauth_signin
 
-async def _patched_signin(auth, email, password, csrf_token):
+async def _patched_signin(auth, *args, **kwargs):
+    """Forward-compatible patch of blinkpy.api.oauth_signin.
+
+    Older blinkpy called this as: oauth_signin(auth, email, password, csrf_token)
+    Newer blinkpy may pass: oauth_signin(auth, email, password) or include
+    additional payload params. We accept whatever blinkpy sends and reconstruct
+    the form ourselves so we control Content-Type, headers, and redirect
+    handling uniformly.
+    """
     from blinkpy.helpers.constants import OAUTH_USER_AGENT, OAUTH_SIGNIN_URL
+    email = args[0] if len(args) >= 1 else kwargs.get("email")
+    password = args[1] if len(args) >= 2 else kwargs.get("password")
+    csrf_token = args[2] if len(args) >= 3 else kwargs.get("csrf_token", "")
     headers = {
         "User-Agent": OAUTH_USER_AGENT,
         "Accept": "*/*",
@@ -28,7 +42,7 @@ async def _patched_signin(auth, email, password, csrf_token):
         "Origin": "https://api.oauth.blink.com",
         "Referer": OAUTH_SIGNIN_URL,
     }
-    data = {"username": email, "password": password, "csrf-token": csrf_token}
+    data = {"username": email or "", "password": password or "", "csrf-token": csrf_token or ""}
     response = await auth.session.post(OAUTH_SIGNIN_URL, headers=headers, data=data, allow_redirects=False)
     status = response.status
     if status in (412, 202):
