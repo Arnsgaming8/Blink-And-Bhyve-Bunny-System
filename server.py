@@ -211,7 +211,7 @@ async function saveSetup() {
     });
     const data = await r.json();
     if (data.ok) {
-      status.textContent = data.message || "Saved! Redirecting...";
+      status.textContent = data.message || "Saved! Restarting...";
       status.className = "status";
       setTimeout(() => { fetch("/api/restart", {method:"POST"}); location.href = "/"; }, 2000);
     } else {
