@@ -1141,7 +1141,15 @@ def _has_credentials():
     config_path = os.path.join(os.path.dirname(__file__), "config.yml")
     try:
         cfg = yaml.safe_load(open(config_path)) or {}
-        return bool(cfg.get("bhyve_email") and cfg.get("bhyve_password") and cfg.get("device_id"))
+        # Check flat keys (old format)
+        if cfg.get("bhyve_email") and cfg.get("bhyve_password") and cfg.get("device_id"):
+            return True
+        # Check provider_configs (new format)
+        pconfs = cfg.get("provider_configs", {})
+        bhyve = pconfs.get("bhyve", {})
+        if bhyve.get("email") and bhyve.get("password") and bhyve.get("device_id"):
+            return True
+        return False
     except Exception:
         return False
 
