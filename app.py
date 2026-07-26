@@ -51,7 +51,14 @@ def generate_config():
 
     if not has_creds:
         print("Missing credentials. Starting in setup mode.")
+        print(f"  ENV vars found: BLINK_EMAIL={bool(os.environ.get('BLINK_EMAIL'))}, BHYVE_EMAIL={bool(os.environ.get('BHYVE_EMAIL'))}, DEVICE_ID={bool(os.environ.get('DEVICE_ID'))}")
+        print(f"  Flat config keys: blink_email={bool(config.get('blink_email'))}, bhyve_email={bool(config.get('bhyve_email'))}, device_id={bool(config.get('device_id'))}")
+        print(f"  Provider configs keys: {list(config.get('provider_configs', {}).keys())}")
         os.environ["SETUP_MODE"] = "1"
+    else:
+        print("Credentials found — bridge will start.")
+        print(f"  ENV vars: BLINK_EMAIL={bool(os.environ.get('BLINK_EMAIL'))}, BHYVE_EMAIL={bool(os.environ.get('BHYVE_EMAIL'))}, DEVICE_ID={bool(os.environ.get('DEVICE_ID'))}")
+        print(f"  Config keys: {list(config.keys())}")
 
     for env_key, config_key in ENV_MAP.items():
         val = os.environ.get(env_key)
