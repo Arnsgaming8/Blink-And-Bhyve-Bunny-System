@@ -1254,7 +1254,10 @@ async def handle_error_delete(request):
 
 
 async def handle_status(request):
-    from bridge import POLL_INTERVAL, CONFIG, PROVIDER_STATUS
+    try:
+        from bridge import POLL_INTERVAL, CONFIG, PROVIDER_STATUS
+    except Exception as e:
+        return web.json_response({"status": "error", "error": f"bridge import failed: {e}", "providers": []})
     providers = []
     for key, p in PROVIDER_STATUS.items():
         providers.append({
@@ -1264,14 +1267,20 @@ async def handle_status(request):
             "connected": p.get("connected", False),
             "error": p.get("error"),
         })
-    return web.json_response({
+    try:
+        water_active = _manual_water_task is not None and not _manual_water_task.done()
+    except Exception:
+        water_active = False
+    resp = {
         "status": "running",
         "error_count": len(errors.get_errors(9999)),
         "last_poll": state.last_poll,
         "poll_interval": POLL_INTERVAL,
-        "water_active": _manual_water_task is not None and not _manual_water_task.done(),
+        "water_active": water_active,
         "providers": providers,
-    })
+    }
+    print(f"  [status] providers={len(providers)} keys={[p['key'] for p in providers]} connected={[p['key'] for p in providers if p.get('connected')]}")
+    return web.json_response(resp)
 
 
 _last_2fa_required: bool | None = None
