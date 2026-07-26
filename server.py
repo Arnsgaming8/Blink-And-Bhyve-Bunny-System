@@ -1611,7 +1611,14 @@ async def handle_setup(request):
                         if k == "type":
                             continue
                         if v:
-                            env_key = f"{pkey.upper()}_{k.upper()}"
+                            # Map provider config keys to expected env var names
+                            env_key_map = {
+                                "email": f"{pkey.upper()}_EMAIL",
+                                "password": f"{pkey.upper()}_PASSWORD",
+                                "device_id": "DEVICE_ID",
+                                "motion_interval": "POLL_INTERVAL_SECONDS",
+                            }
+                            env_key = env_key_map.get(k, f"{pkey.upper()}_{k.upper()}")
                             updates[env_key] = str(v)
                 if render_api_key:
                     updates["RENDER_API_KEY"] = render_api_key
