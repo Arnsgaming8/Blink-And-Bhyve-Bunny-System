@@ -213,7 +213,7 @@ async function saveSetup() {
     if (data.ok) {
       status.textContent = data.message || "Saved! Restarting...";
       status.className = "status";
-      setTimeout(() => { fetch("/api/restart", {method:"POST"}); location.href = "/"; }, 2000);
+      setTimeout(() => { location.href = "/"; }, 1500);
     } else {
       status.textContent = "Error: " + (data.error || "unknown");
       status.className = "status err";
