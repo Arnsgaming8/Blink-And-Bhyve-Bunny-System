@@ -211,7 +211,7 @@ async function saveSetup() {
     });
     const data = await r.json();
     if (data.ok) {
-      status.textContent = data.message || "Saved! Restarting...";
+      status.textContent = data.message || "Saved! Redirecting...";
       status.className = "status";
       setTimeout(() => { location.href = "/"; }, 1500);
     } else {
@@ -1541,6 +1541,14 @@ async def handle_setup(request):
             cfg["poll_interval_seconds"] = int(poll_interval)
         if render_api_key:
             cfg["render_api_key"] = render_api_key
+        # Also write flat keys so _has_credentials() and bridge can find them
+        bhyve_p = provider_configs.get("bhyve", {})
+        blink_p = provider_configs.get("blink", {})
+        if bhyve_p.get("email"): cfg["bhyve_email"] = bhyve_p["email"]
+        if bhyve_p.get("password"): cfg["bhyve_password"] = bhyve_p["password"]
+        if bhyve_p.get("device_id"): cfg["device_id"] = bhyve_p["device_id"]
+        if blink_p.get("email"): cfg["blink_email"] = blink_p["email"]
+        if blink_p.get("password"): cfg["blink_password"] = blink_p["password"]
     else:
         # --- Backward compatible: flat blink/bhyve fields ---
         blink_email = body.get("blink_email") or ""
