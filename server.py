@@ -1128,8 +1128,15 @@ async function deleteCamera(name) {
 
 
 async def handle_index(request):
-    if request.query.get("setup") == "1" or os.environ.get("SETUP_MODE") == "1":
+    if request.query.get("setup") == "1":
         return web.Response(text=SETUP_PAGE, content_type="text/html")
+
+    # Always re-check credentials — they may have been saved via setup form
+    if os.environ.get("SETUP_MODE") == "1":
+        if _has_credentials():
+            os.environ.pop("SETUP_MODE", None)
+        else:
+            return web.Response(text=SETUP_PAGE, content_type="text/html")
 
     if _has_credentials():
         return web.Response(text=PAGE, content_type="text/html")
