@@ -213,7 +213,7 @@ async function saveSetup() {
     if (data.ok) {
       status.textContent = data.message || "Saved! Redirecting...";
       status.className = "status";
-      setTimeout(() => { location.href = "/"; }, 1500);
+      setTimeout(() => { fetch("/api/restart", {method:"POST"}); location.href = "/"; }, 2000);
     } else {
       status.textContent = "Error: " + (data.error || "unknown");
       status.className = "status err";
@@ -1673,20 +1673,8 @@ async def handle_restart(request):
         pass
     _manual_water_task = None
     _water_pending = False
-    service_id = os.environ.get("RENDER_SERVICE_ID") or os.environ.get("RENDER_SERVICE")
-    api_key = os.environ.get("RENDER_API_KEY")
-    if service_id and api_key:
-        try:
-            async with aiohttp.ClientSession() as s:
-                async with s.post(
-                    f"https://api.render.com/v1/services/{service_id}/deploys",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={"clearCache": "do_not_clear"},
-                ) as resp:
-                    if resp.status == 201:
-                        return web.json_response({"ok": True, "message": "Restarting service on Render..."})
-        except Exception:
-            pass
+    # Always use os._exit(0) to restart in the same container.
+    # Using Render deploy API creates a new container which loses config.yml.
     print("Restart: exiting process — Render will auto-restart")
     await asyncio.sleep(2)
     os._exit(0)
