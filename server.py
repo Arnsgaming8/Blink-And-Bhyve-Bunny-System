@@ -1135,6 +1135,11 @@ async def handle_index(request):
     if os.environ.get("SETUP_MODE") == "1":
         if _has_credentials():
             os.environ.pop("SETUP_MODE", None)
+            # Start bridge dynamically if it was skipped at startup
+            _app = request.app
+            if not _app.get("bridge_task") or _app["bridge_task"].done():
+                from app import bridge_background_task
+                await bridge_background_task(_app)
         else:
             return web.Response(text=SETUP_PAGE, content_type="text/html")
 
