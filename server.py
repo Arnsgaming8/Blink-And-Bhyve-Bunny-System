@@ -80,20 +80,37 @@ SETUP_PAGE = r"""<!DOCTYPE html>
 <h1>BABBS — Setup</h1>
 <p class="sub">Configure your cameras and sprinklers.</p>
 
-<div class="card" id="providerConfigs">
-  <h2>Camera Providers <span class="tag" id="availCamProviders"></span></h2>
-  <div id="cameraProviders"></div>
-  <button class="secondary" onclick="addCameraProvider()">+ Add Camera Provider</button>
+<div class="card">
+  <h2>\U0001f4f7 Blink Camera <span class="tag">blink</span></h2>
+  <label>Email</label>
+  <input type="email" id="blinkEmail" placeholder="your-blink-email@example.com">
+  <label>Password</label>
+  <div class="pw-wrap">
+    <input type="password" id="blinkPassword" placeholder="Blink password">
+    <button class="pw-toggle" onclick="togglePw('blinkPassword',this)" type="button">Show</button>
+  </div>
+  <label>Motion Interval (minutes)</label>
+  <input type="number" id="blinkMotionInterval" value="360" min="1">
+  <div class="hint">How often to check for motion. Default 360 min (6 hours).</div>
+</div>
 
-  <hr>
-
-  <h2>Sprinkler Providers <span class="tag" id="availSprinklerProviders"></span></h2>
-  <div id="sprinklerProviders"></div>
-  <button class="secondary" onclick="addSprinklerProvider()">+ Add Sprinkler Provider</button>
+<div class="card">
+  <h2>\U0001f4a7 B-hyve Sprinkler <span class="tag">b-hyve</span></h2>
+  <label>Email</label>
+  <input type="email" id="bhyveEmail" placeholder="your-bhyve-email@example.com">
+  <label>Password</label>
+  <div class="pw-wrap">
+    <input type="password" id="bhyvePassword" placeholder="B-hyve password">
+    <button class="pw-toggle" onclick="togglePw('bhyvePassword',this)" type="button">Show</button>
+  </div>
+  <label>Device ID</label>
+  <input type="text" id="bhyveDeviceId" placeholder="e.g. 607220244f0c161d5a0d1648">
+  <div class="hint">Find this in the B-hyve app under Device Settings.</div>
 </div>
 
 <div class="card" id="rulesCard">
-  <h2>Rules <span class="tag">camera → sprinkler zone</span></h2>
+  <h2>Rules <span class="tag">Blink → B-hyve zone</span></h2>
+  <p class="hint" style="margin-top:0">When Blink detects motion, water this B-hyve zone.</p>
   <div id="rules"></div>
   <button class="secondary" onclick="addRule()">+ Add Rule</button>
 </div>
@@ -107,18 +124,13 @@ SETUP_PAGE = r"""<!DOCTYPE html>
     <input type="password" id="renderApiKey" placeholder="rnd_...">
     <button class="pw-toggle" onclick="togglePw('renderApiKey',this)" type="button">Show</button>
   </div>
-  <div class="hint">Required only to persist credentials as Render env vars (API key with env_var_write scope).</div>
+  <div class="hint">Optional. Saves credentials as Render env vars (API key with env_var_write scope).</div>
 </div>
 
 <button class="primary" onclick="saveSetup()">Save &amp; Restart</button>
 <div class="status" id="setupStatus"></div>
 
 <script>
-const AVAIL_CAM = __AVAIL_CAM__;
-const AVAIL_SPRINKLER = __AVAIL_SPRINKLER__;
-
-let camProviders = [];
-let sprProviders = [];
 let rules = [];
 
 function togglePw(id, btn) {
@@ -127,115 +139,27 @@ function togglePw(id, btn) {
   btn.textContent = inp.type === "password" ? "Show" : "Hide";
 }
 
-function camLabel(t) {
-  const m = {
-    blink:"Blink"
-  };
-  return m[t] || t;
-}
-function sprLabel(t) {
-  const m = {
-    bhyve:"B-hyve"
-  };
-  return m[t] || t;
-}
-
-function camFields(t) {
-  if (t === "blink") return [
-    {key:"email", label:"Email", type:"email"},
-    {key:"password", label:"Password", type:"password"},
-    {key:"motion_interval", label:"Motion Interval (minutes)", type:"number", val:360}
-  ];
-  return [{key:"email", label:"Email", type:"email"},{key:"password", label:"Password", type:"password"}];
-}
-
-function sprFields(t) {
-  if (t === "bhyve") return [
-    {key:"email", label:"Email", type:"email"},
-    {key:"password", label:"Password", type:"password"},
-    {key:"device_id", label:"Device ID", type:"text"}
-  ];
-  return [{key:"email", label:"Email", type:"email"},{key:"password", label:"Password", type:"password"}];
-}
-
-function renderProviders() {
-  const camDiv = document.getElementById("cameraProviders");
-  camDiv.innerHTML = camProviders.map((p, i) => renderProvider(p, i, "cam")).join("");
-  document.getElementById("availCamProviders").textContent = AVAIL_CAM.join(", ");
-
-  const sprDiv = document.getElementById("sprinklerProviders");
-  sprDiv.innerHTML = sprProviders.map((p, i) => renderProvider(p, i, "spr")).join("");
-  document.getElementById("availSprinklerProviders").textContent = AVAIL_SPRINKLER.join(", ");
-
+function renderRules() {
   const rulesDiv = document.getElementById("rules");
-  rulesDiv.innerHTML = rules.map((r, i) => renderRule(r, i)).join("");
-}
-
-function renderProvider(p, idx, kind) {
-  const avail = kind === "cam" ? AVAIL_CAM : AVAIL_SPRINKLER;
-  const fields = kind === "cam" ? camFields(p.type) : sprFields(p.type);
-  const label = kind === "cam" ? camLabel : sprLabel;
-  const listId = kind + "_type_" + idx;
-  const opts = avail.map(t => `<option value="${t}">${label(t)}</option>`).join("");
-  const fhtml = fields.map(f => {
-    const val = p.config[f.key] !== undefined ? p.config[f.key] : (f.val !== undefined ? f.val : "");
-    const inp = f.type === "password"
-      ? `<div class="pw-wrap"><input type="password" id="${kind}_${idx}_${f.key}" value="${val}" placeholder="${f.label}" onchange="updateProv(${idx},'${kind}','${f.key}',this.value)"><button class="pw-toggle" onclick="togglePw('${kind}_${idx}_${f.key}',this)" type="button">Show</button></div>`
-      : `<input type="${f.type}" id="${kind}_${idx}_${f.key}" value="${val}" placeholder="${f.label}" onchange="updateProv(${idx},'${kind}','${f.key}',this.value)">`;
-    return `<label>${f.label}</label>${inp}`;
+  if (!rules.length) {
+    rulesDiv.innerHTML = '<p style="color:#8b949e;font-size:0.85rem">No rules yet. Add one below.</p>';
+    return;
+  }
+  rulesDiv.innerHTML = rules.map((r, i) => {
+    return `<div class="rule-row">
+      <span style="color:#58a6ff;font-size:0.85rem;white-space:nowrap">Blink</span>
+      <span style="color:#8b949e">\u2192</span>
+      <span style="color:#8b949e;font-size:0.85rem;white-space:nowrap">zone</span>
+      <input type="number" value="${r.zone || 1}" min="1" max="12" style="width:60px" onchange="rules[${i}].zone=parseInt(this.value)||1">
+      <span style="color:#8b949e;font-size:0.85rem">for</span>
+      <input type="number" value="${r.duration_seconds || 60}" min="1" style="width:70px" onchange="rules[${i}].duration_seconds=parseInt(this.value)||60">
+      <span style="color:#8b949e;font-size:0.85rem">s</span>
+      <button class="danger" onclick="rules.splice(${i},1);renderRules()" style="margin:0;font-size:0.8rem">\u2715</button>
+    </div>`;
   }).join("");
-  return `<div class="provider-entry">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <input list="${listId}" value="${p.type}" placeholder="Search provider type…" onchange="changeProviderType(${idx},'${kind}',this.value)" style="flex:1">
-      <datalist id="${listId}">${opts}</datalist>
-      <button class="danger" onclick="removeProvider(${idx},'${kind}')" style="margin:0 0 0 6px;font-size:0.8rem">Remove</button>
-    </div>
-    ${fhtml}
-  </div>`;
 }
 
-function renderRule(r, idx) {
-  const camOpts = camProviders.map((p, i) =>
-    `<option value="cam_${i}" ${r.camera_provider === `cam_${i}` ? "selected" : ""}>${camLabel(p.type)} #${i+1}</option>`
-  ).join("");
-  const sprOpts = sprProviders.map((p, i) =>
-    `<option value="spr_${i}" ${r.sprinkler_provider === `spr_${i}` ? "selected" : ""}>${sprLabel(p.type)} #${i+1}</option>`
-  ).join("");
-  return `<div class="rule-row">
-    <select onchange="updateRule(${idx},'camera_provider',this.value)">
-      <option value="">— Camera —</option>${camOpts}
-    </select>
-    <span style="color:#8b949e">→</span>
-    <select onchange="updateRule(${idx},'sprinkler_provider',this.value)">
-      <option value="">— Sprinkler —</option>${sprOpts}
-    </select>
-    <span style="color:#8b949e">zone</span>
-    <input type="number" value="${r.zone || 1}" min="1" style="width:60px" onchange="updateRule(${idx},'zone',parseInt(this.value)||1)">
-    <span style="color:#8b949e">for</span>
-    <input type="number" value="${r.duration_seconds || 60}" min="1" style="width:70px" onchange="updateRule(${idx},'duration_seconds',parseInt(this.value)||60)">
-    <span style="color:#8b949e">s</span>
-    <button class="danger" onclick="rules.splice(${idx},1);renderProviders()" style="margin:0;font-size:0.8rem">✕</button>
-  </div>`;
-}
-
-function addCameraProvider() { camProviders.push({type:"blink",config:{}}); renderProviders(); }
-function addSprinklerProvider() { sprProviders.push({type:"bhyve",config:{}}); renderProviders(); }
-function addRule() { rules.push({camera_provider:"",sprinkler_provider:"",zone:1,duration_seconds:60}); renderProviders(); }
-
-function removeProvider(idx, kind) {
-  if (kind === "cam") camProviders.splice(idx, 1); else sprProviders.splice(idx, 1);
-  renderProviders();
-}
-function updateProv(idx, kind, key, val) {
-  const arr = kind === "cam" ? camProviders : sprProviders;
-  if (idx >= 0 && idx < arr.length) arr[idx].config[key] = val;
-}
-function changeProviderType(idx, kind, newType) {
-  const arr = kind === "cam" ? camProviders : sprProviders;
-  if (idx >= 0 && idx < arr.length) { arr[idx].type = newType; arr[idx].config = {}; }
-  renderProviders();
-}
-function updateRule(idx, key, val) { if (idx >= 0 && idx < rules.length) rules[idx][key] = val; }
+function addRule() { rules.push({zone: 1, duration_seconds: 60}); renderRules(); }
 
 async function saveSetup() {
   const btn = document.querySelector("button.primary");
@@ -243,27 +167,44 @@ async function saveSetup() {
   btn.disabled = true; btn.textContent = "Saving...";
   status.className = "status"; status.textContent = "";
 
-  const provider_configs = {};
-  camProviders.forEach((p, i) => { provider_configs[`cam_${i}`] = {type:p.type, ...p.config}; });
-  sprProviders.forEach((p, i) => { provider_configs[`spr_${i}`] = {type:p.type, ...p.config}; });
+  const blinkEmail = document.getElementById("blinkEmail").value.trim();
+  const blinkPassword = document.getElementById("blinkPassword").value;
+  const blinkMotion = parseInt(document.getElementById("blinkMotionInterval").value) || 360;
+  const bhyveEmail = document.getElementById("bhyveEmail").value.trim();
+  const bhyvePassword = document.getElementById("bhyvePassword").value;
+  const bhyveDeviceId = document.getElementById("bhyveDeviceId").value.trim();
 
-  const cameras = rules.filter(r => r.camera_provider && r.sprinkler_provider).map((r, i) => ({
-    name: `Camera ${i+1}`,
-    provider: r.camera_provider,
-    sprinkler: r.sprinkler_provider,
-    zone: r.zone,
-    duration_seconds: r.duration_seconds,
-    arm: true,
-    no_water: false
+  if (!blinkEmail || !blinkPassword) {
+    status.textContent = "Blink email and password are required.";
+    status.className = "status err"; btn.disabled = false; btn.textContent = "Save & Restart";
+    return;
+  }
+  if (!bhyveEmail || !bhyvePassword || !bhyveDeviceId) {
+    status.textContent = "B-hyve email, password, and Device ID are required.";
+    status.className = "status err"; btn.disabled = false; btn.textContent = "Save & Restart";
+    return;
+  }
+
+  const provider_configs = {
+    blink: {type: "blink", email: blinkEmail, password: blinkPassword, motion_interval: blinkMotion},
+    bhyve: {type: "bhyve", email: bhyveEmail, password: bhyvePassword, device_id: bhyveDeviceId}
+  };
+
+  const cameras = rules.map((r, i) => ({
+    name: `Camera ${i+1}`, provider: "blink", sprinkler: "bhyve",
+    zone: r.zone, duration_seconds: r.duration_seconds, arm: true, no_water: false
   }));
+  if (!cameras.length) {
+    cameras.push({name: "Camera 1", provider: "blink", sprinkler: "bhyve",
+                   zone: 1, duration_seconds: 60, arm: true, no_water: false});
+  }
 
   try {
     const r = await fetch("/api/setup", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
-        provider_configs,
-        cameras,
+        provider_configs, cameras,
         poll_interval_seconds: parseInt(document.getElementById("pollInterval").value) || 30,
         render_api_key: document.getElementById("renderApiKey").value.trim()
       })
@@ -281,13 +222,9 @@ async function saveSetup() {
     status.textContent = "Network error: " + e.message;
     status.className = "status err";
   }
-  btn.disabled = false;
-  btn.textContent = "Save &amp; Restart";
+  btn.disabled = false; btn.textContent = "Save & Restart";
 }
 
-// Init with default providers
-addCameraProvider();
-addSprinklerProvider();
 addRule();
 </script>
 </body>
@@ -1210,13 +1147,7 @@ def _has_credentials():
 
 
 async def handle_setup_page(request):
-    import json
-    from cameras import list_providers as list_cam_providers
-    from sprinklers import list_providers as list_spr_providers
-    cam_json = json.dumps(list_cam_providers())
-    spr_json = json.dumps(list_spr_providers())
-    page = SETUP_PAGE.replace("__AVAIL_CAM__", cam_json).replace("__AVAIL_SPRINKLER__", spr_json)
-    return web.Response(text=page, content_type="text/html")
+    return web.Response(text=SETUP_PAGE, content_type="text/html")
 
 
 async def handle_errors(request):
@@ -1291,6 +1222,7 @@ async def handle_2fa_submit(request):
             return web.json_response({"ok": False, "error": "No 2FA session active"}, status=400)
         state.twofa_pin = pin
         state.twofa_pending = True
+        state.get_twofa_event().set()
         if state.blink_instance is None:
             state.blink_instance = blink
         return web.json_response({"ok": True})
