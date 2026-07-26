@@ -170,14 +170,22 @@ def _deduplicate_providers(rules: list[dict]) -> dict[str, dict]:
 async def handle_2fa_background(blink):
     state.blink_instance = blink
     state.twofa_pending = False
+    state.get_twofa_event().clear()
     try:
         while True:
             if getattr(blink, "urls", None) is not None:
                 state.blink_instance = None
+                state.get_twofa_event().clear()
                 break
             if not state.twofa_pending:
-                await asyncio.sleep(1)
+                # Block on the event until the server signals a PIN submission,
+                # then clear it so the next submission can wake us again. The
+                # urls-ready check at the top of the loop is re-evaluated on
+                # every wake-up.
+                await state.get_twofa_event().wait()
+                state.get_twofa_event().clear()
                 continue
+            state.get_twofa_event().clear()
             pin = state.twofa_pin
             state.twofa_pin = None
             state.twofa_pending = False
@@ -230,6 +238,12 @@ async def handle_2fa_background(blink):
     finally:
         state.reauth_in_progress = False
         state.handle_2fa_task = None
+        # Reset on exit so a stale PIN-submitted set() that raced the exit
+        # window can't leak into a future 2FA handler for a fresh challenge.
+        try:
+            state.get_twofa_event().clear()
+        except Exception:
+            pass
 
 
 async def main():
