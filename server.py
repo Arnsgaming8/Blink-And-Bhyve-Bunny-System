@@ -1317,12 +1317,20 @@ async def handle_2fa_resend(request):
     import yaml
     config_path = os.path.join(os.path.dirname(__file__), "config.yml")
     try:
-        cfg = yaml.safe_load(open(config_path)) or {}
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
     except Exception:
         cfg = {}
 
     blink_email = cfg.get("blink_email") or os.environ.get("BLINK_EMAIL", "")
     blink_password = cfg.get("blink_password") or os.environ.get("BLINK_PASSWORD", "")
+    # Also check provider_configs format
+    pconfs = cfg.get("provider_configs", {})
+    blink_p = pconfs.get("blink", {})
+    if not blink_email and blink_p.get("email"):
+        blink_email = blink_p["email"]
+    if not blink_password and blink_p.get("password"):
+        blink_password = blink_p["password"]
     if not blink_email or not blink_password:
         errors.log_error("main.blink_2fa_resend", "No Blink credentials configured")
         return web.json_response({"ok": False, "error": "No Blink credentials configured"}, status=400)
@@ -1342,7 +1350,7 @@ async def handle_2fa_resend(request):
             blink_obj.auth = Auth(auth_data, session=session)
 
             try:
-                ok = await blink_obj.start()
+                ok = await asyncio.wait_for(blink_obj.start(), timeout=30)
                 if ok:
                     state.active_blink = blink_obj
                     state.blink_instance = None
