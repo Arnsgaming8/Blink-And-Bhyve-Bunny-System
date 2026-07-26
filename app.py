@@ -34,10 +34,20 @@ def generate_config():
     blink_disabled = os.environ.get("DISABLE_BLINK_POLLING") == "1"
     required = [v for v in REQUIRED if not (blink_disabled and v.startswith("BLINK_"))]
 
-    has_creds = all(os.environ.get(v) for v in required) or (
+    # Check flat keys (old format)
+    has_flat = (
         config.get("bhyve_email") and config.get("bhyve_password") and config.get("device_id")
         and (blink_disabled or (config.get("blink_email") and config.get("blink_password")))
     )
+    # Check provider_configs (new format)
+    pconfs = config.get("provider_configs", {})
+    bhyve_p = pconfs.get("bhyve", {})
+    blink_p = pconfs.get("blink", {})
+    has_provider = (
+        bhyve_p.get("email") and bhyve_p.get("password") and bhyve_p.get("device_id")
+        and (blink_disabled or (blink_p.get("email") and blink_p.get("password")))
+    )
+    has_creds = all(os.environ.get(v) for v in required) or has_flat or has_provider
 
     if not has_creds:
         print("Missing credentials. Starting in setup mode.")
