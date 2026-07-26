@@ -1155,7 +1155,70 @@ def _has_credentials():
 
 
 async def handle_setup_page(request):
-    return web.Response(text=SETUP_PAGE, content_type="text/html")
+    import yaml
+    config_path = os.path.join(os.path.dirname(__file__), "config.yml")
+    cfg = {}
+    try:
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f) or {}
+    except Exception:
+        pass
+
+    # Extract values from flat keys or provider_configs
+    blink_email = cfg.get("blink_email") or ""
+    blink_password = cfg.get("blink_password") or ""
+    blink_motion = cfg.get("motion_interval") or 360
+    bhyve_email = cfg.get("bhyve_email") or ""
+    bhyve_password = cfg.get("bhyve_password") or ""
+    device_id = cfg.get("device_id") or ""
+    poll_interval = cfg.get("poll_interval_seconds") or 30
+    render_api_key = cfg.get("render_api_key") or ""
+
+    pconfs = cfg.get("provider_configs", {})
+    blink_p = pconfs.get("blink", {})
+    bhyve_p = pconfs.get("bhyve", {})
+    if blink_p.get("email"): blink_email = blink_p["email"]
+    if blink_p.get("password"): blink_password = blink_p["password"]
+    if blink_p.get("motion_interval"): blink_motion = blink_p["motion_interval"]
+    if bhyve_p.get("email"): bhyve_email = bhyve_p["email"]
+    if bhyve_p.get("password"): bhyve_password = bhyve_p["password"]
+    if bhyve_p.get("device_id"): device_id = bhyve_p["device_id"]
+
+    # Escape HTML values to prevent XSS
+    def esc(s):
+        return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+    page = SETUP_PAGE
+    if blink_email:
+        page = page.replace('id="blinkEmail" placeholder', f'id="blinkEmail" value="{esc(blink_email)}" placeholder')
+    if blink_password:
+        page = page.replace('id="blinkPassword" placeholder', f'id="blinkPassword" value="{esc(blink_password)}" placeholder')
+    if blink_motion:
+        page = page.replace('id="blinkMotionInterval" value="360"', f'id="blinkMotionInterval" value="{esc(blink_motion)}"')
+    if bhyve_email:
+        page = page.replace('id="bhyveEmail" placeholder', f'id="bhyveEmail" value="{esc(bhyve_email)}" placeholder')
+    if bhyve_password:
+        page = page.replace('id="bhyvePassword" placeholder', f'id="bhyvePassword" value="{esc(bhyve_password)}" placeholder')
+    if device_id:
+        page = page.replace('id="bhyveDeviceId" placeholder', f'id="bhyveDeviceId" value="{esc(device_id)}" placeholder')
+    if poll_interval:
+        page = page.replace('id="pollInterval" value="30"', f'id="pollInterval" value="{esc(poll_interval)}"')
+    if render_api_key:
+        page = page.replace('id="renderApiKey" placeholder', f'id="renderApiKey" value="{esc(render_api_key)}" placeholder')
+
+    # Pre-fill rules from cameras config
+    cameras = cfg.get("cameras", [])
+    if cameras:
+        rules_js = json.dumps([
+            {"zone": c.get("zone", 1), "duration_seconds": c.get("duration_seconds", 60)}
+            for c in cameras
+        ])
+        page = page.replace(
+            'addRule();',
+            f'rules = {rules_js}; renderRules();'
+        )
+
+    return web.Response(text=page, content_type="text/html")
 
 
 async def handle_errors(request):
