@@ -160,6 +160,11 @@ class BlinkCameraProvider(CameraProvider):
                 print(f"  Failed to save blink auth to Render: {e}")
 
     async def connect(self) -> bool:
+        # Skip if Blink rate limit is still active — prevents hammering during ban
+        if time.time() < state.blink_rate_limit_until:
+            remaining = int(state.blink_rate_limit_until - time.time())
+            print(f"  Blink rate limited — {remaining}s remaining, skipping connect")
+            return False
         try:
             blink = Blink(motion_interval=self._motion_interval)
             auth_data = {"username": self._email, "password": self._password}

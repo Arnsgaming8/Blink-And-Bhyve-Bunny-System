@@ -1204,10 +1204,7 @@ async def handle_2fa_status(request):
     )
     required = (blink_inst is not None) or session_expired
     global _last_2fa_required
-    if _last_2fa_required != required:
-        print(f"  [2fa_status] required={required} blink_inst={'yes' if blink_inst else 'no'} "
-              f"active={'yes' if active else 'no'} | twofa_pending={state.twofa_pending} (informational only)")
-        _last_2fa_required = required
+    _last_2fa_required = required
     return web.json_response({"required": required})
 
 
