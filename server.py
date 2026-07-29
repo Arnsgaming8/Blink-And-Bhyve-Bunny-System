@@ -246,39 +246,7 @@ PAGE = r"""<!DOCTYPE html>
   .badge { background: #21262d; padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; }
   .badge.err { background: #da3633; color: #fff; }
   .badge.warn { background: #d29922; color: #fff; }
-  .conn-status { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
-  .conn-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-               padding: 14px 18px; display: flex; align-items: center; gap: 14px;
-               transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; }
-  .conn-card:hover { background: #1c2128; }
-  .conn-card.connected { border-color: #2ea043;
-                         box-shadow: inset 0 0 0 1px #2ea043, 0 0 12px -4px rgba(46,160,67,0.4); }
-  .conn-card.disconnected { border-color: #da3633;
-                            box-shadow: inset 0 0 0 1px #da3633; }
-  .conn-card.connecting { border-color: #d29922;
-                          box-shadow: inset 0 0 0 1px #d29922; }
-  .conn-icon { width: 40px; height: 40px; border-radius: 8px;
-               background: #21262d; display: flex; align-items: center; justify-content: center;
-               font-size: 1.3rem; flex-shrink: 0; }
-  .conn-card.connected .conn-icon { background: rgba(46,160,67,0.15); color: #3fb950; }
-  .conn-card.disconnected .conn-icon { background: rgba(248,81,73,0.15); color: #f85149; }
-  .conn-card.connecting .conn-icon { background: rgba(210,153,34,0.15); color: #d29922; }
-  .conn-info { flex: 1; min-width: 0; }
-  .conn-label { font-size: 0.78rem; color: #8b949e; text-transform: uppercase;
-                letter-spacing: 0.04em; margin-bottom: 4px; font-weight: 600; }
-  .conn-state { font-size: 1.05rem; font-weight: 600; color: #c9d1d9;
-                display: flex; align-items: center; gap: 8px; }
-  .conn-state .dot { width: 10px; height: 10px; border-radius: 50%;
-                     background: #8b949e; flex-shrink: 0; }
-  .conn-card.connected .conn-state { color: #3fb950; }
-  .conn-card.connected .conn-state .dot { background: #3fb950; box-shadow: 0 0 10px #3fb950; animation: pulse 2.5s infinite; }
-  .conn-card.disconnected .conn-state { color: #f85149; }
-  .conn-card.disconnected .conn-state .dot { background: #f85149; }
-  .conn-card.connecting .conn-state { color: #d29922; }
-  .conn-card.connecting .conn-state .dot { background: #d29922; animation: pulse 1s infinite; }
-  .conn-meta { font-size: 0.78rem; color: #8b949e; margin-top: 4px; }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-  @media (max-width: 600px) { .conn-status { grid-template-columns: 1fr; } }
+
   #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
            background: #238636; color: #fff; padding: 10px 24px; border-radius: 8px;
            font-size: 0.9rem; z-index: 9999; opacity: 0; transition: opacity 0.3s;
@@ -431,24 +399,6 @@ PAGE = r"""<!DOCTYPE html>
 <h1>Blink → B‑hyve Bridge <button class="shutdown" onclick="shutdownServer()">Shutdown Server</button></h1>
 <p class="sub">Error &amp; event monitor</p>
 
-<div class="conn-status" id="connStatus">
-  <div class="conn-card" data-kind="camera" data-key="blink" id="connBlink">
-    <div class="conn-icon">&#128247;</div>
-    <div class="conn-info">
-      <div class="conn-label">Camera Provider</div>
-      <div class="conn-state"><span class="dot"></span><span class="conn-state-text">Waiting&hellip;</span></div>
-      <div class="conn-meta" id="connBlinkMeta">Awaiting bridge&hellip;</div>
-    </div>
-  </div>
-  <div class="conn-card" data-kind="sprinkler" data-key="bhyve" id="connBhyve">
-    <div class="conn-icon">&#128166;</div>
-    <div class="conn-info">
-      <div class="conn-label">Sprinkler Provider</div>
-      <div class="conn-state"><span class="dot"></span><span class="conn-state-text">Waiting&hellip;</span></div>
-      <div class="conn-meta" id="connBhyveMeta">Awaiting bridge&hellip;</div>
-    </div>
-  </div>
-</div>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <div class="sidebar" id="sidebar">
@@ -706,46 +656,6 @@ async function check2FA() {
   } catch(e) { /* ignore */ }
 }
 let pollCountdown = null;
-function updateConnCards(data) {
-  const cards = document.querySelectorAll(".conn-card");
-  if (!data.providers || !data.providers.length) {
-    cards.forEach(c => {
-      c.classList.remove("connected", "disconnected");
-      c.classList.add("connecting");
-      c.querySelector(".conn-state-text").textContent = "Initializing\u2026";
-      const meta = c.querySelector(".conn-meta");
-      if (meta) meta.textContent = "Bridge starting\u2026";
-    });
-    return;
-  }
-  cards.forEach(card => {
-    const targetKind = card.dataset.kind;
-    let p = data.providers.find(x => x.key === card.dataset.key);
-    if (!p) p = data.providers.find(x => x.kind === targetKind);
-    const stateEl = card.querySelector(".conn-state-text");
-    const metaEl = card.querySelector(".conn-meta");
-    card.classList.remove("connected", "disconnected", "connecting");
-    if (!p) {
-      stateEl.textContent = "Not configured";
-      card.classList.add("disconnected");
-      if (metaEl) metaEl.textContent = "Provider not in config";
-      return;
-    }
-    if (p.connected) {
-      stateEl.textContent = "Connected";
-      card.classList.add("connected");
-      if (metaEl) metaEl.textContent = p.kind === "camera" ? "Polling every " + (data.poll_interval || 30) + "s" : "Ready to water";
-    } else if (p.error) {
-      stateEl.textContent = "Error";
-      card.classList.add("disconnected");
-      if (metaEl) metaEl.textContent = p.error.slice(0, 100);
-    } else {
-      stateEl.textContent = "Disconnected";
-      card.classList.add("disconnected");
-      if (metaEl) metaEl.textContent = "Retrying connection\u2026";
-    }
-  });
-}
 
 async function pollStatus() {
   try {
@@ -774,7 +684,6 @@ async function pollStatus() {
         return `<span class="badge" style="font-size:0.8rem;color:${color}" title="${label}${err ? ': '+err : ''}">${text}</span>`;
       }).join("");
     }
-    updateConnCards(data);
     const setupBtn = document.getElementById("setupBtn");
     const allOk = data.providers && data.providers.length > 0 && data.providers.every(p => p.connected);
     if (setupBtn) setupBtn.style.display = allOk ? "none" : "";
