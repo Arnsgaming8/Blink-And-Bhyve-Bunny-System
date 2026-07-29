@@ -297,6 +297,16 @@ PAGE = r"""<!DOCTYPE html>
                       padding: 6px 12px; color: #c9d1d9; font-size: 1rem; width: 180px; }
   .twofa-form input:focus { outline: none; border-color: #58a6ff; }
   .twofa-status { margin-top: 8px; font-size: 0.85rem; color: #8b949e; }
+  .rate-limit-banner { background: #1c1508; border: 1px solid #d29922; border-radius: 8px;
+                  padding: 14px 18px; margin-bottom: 16px; display: none;
+                  align-items: center; gap: 14px; }
+  .rate-limit-banner.show { display: flex; }
+  .rate-limit-banner .rl-icon { font-size: 1.6rem; flex-shrink: 0; }
+  .rate-limit-banner .rl-body { flex: 1; }
+  .rate-limit-banner .rl-body h3 { color: #d29922; margin-bottom: 4px; font-size: 0.95rem; }
+  .rate-limit-banner .rl-body p { color: #8b949e; font-size: 0.82rem; margin: 0; }
+  .rate-limit-banner .rl-timer { font-size: 1.4rem; font-weight: 700; color: #d29922;
+                                 font-variant-numeric: tabular-nums; white-space: nowrap; }
   @media (max-width: 600px) {
     body { padding: 12px; }
     h1 { font-size: 1.2rem; }
@@ -495,6 +505,15 @@ PAGE = r"""<!DOCTYPE html>
   <div class="twofa-status" id="twofaStatus"></div>
 </div>
 
+<div class="rate-limit-banner" id="rateLimitBanner">
+  <span class="rl-icon">&#9888;</span>
+  <div class="rl-body">
+    <h3>Blink Rate Limited</h3>
+    <p>Too many login attempts. Bridge will retry automatically.</p>
+  </div>
+  <span class="rl-timer" id="rateLimitTimer"></span>
+</div>
+
 <div class="toolbar">
   <button class="sidebar-btn" onclick="toggleSidebar()">&#9776; Cameras</button>
   <span class="badge" id="count">0 errors</span>
@@ -689,6 +708,32 @@ async function pollStatus() {
     if (setupBtn) setupBtn.style.display = allOk ? "none" : "";
     const cancelBtn = document.getElementById("cancelWaterBtn");
     cancelBtn.style.display = data.water_active ? "inline-block" : "none";
+    // Rate limit countdown banner
+    const rlBanner = document.getElementById("rateLimitBanner");
+    const rlTimer = document.getElementById("rateLimitTimer");
+    if (data.rate_limit_until && data.rate_limit_until > Date.now() / 1000) {
+      rlBanner.classList.add("show");
+      const endMs = data.rate_limit_until * 1000;
+      if (window._rlCountdown) clearInterval(window._rlCountdown);
+      window._rlCountdown = setInterval(() => {
+        const rem = Math.max(0, Math.round((endMs - Date.now()) / 1000));
+        if (rem <= 0) {
+          clearInterval(window._rlCountdown);
+          rlBanner.classList.remove("show");
+          rlTimer.textContent = "";
+          return;
+        }
+        const h = Math.floor(rem / 3600);
+        const m = Math.floor((rem % 3600) / 60);
+        const s = rem % 60;
+        rlTimer.textContent = (h > 0 ? h + "h " : "") +
+          String(m).padStart(2, "0") + "m " +
+          String(s).padStart(2, "0") + "s";
+      }, 1000);
+    } else {
+      rlBanner.classList.remove("show");
+      if (window._rlCountdown) clearInterval(window._rlCountdown);
+    }
   } catch(e) { /* ignore */ }
 }
 let waterStatusTimer = null;
@@ -1187,6 +1232,7 @@ async def handle_status(request):
         "poll_interval": POLL_INTERVAL,
         "water_active": water_active,
         "providers": providers,
+        "rate_limit_until": state.blink_rate_limit_until,
     }
     return web.json_response(resp)
 
