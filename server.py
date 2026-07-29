@@ -1188,7 +1188,6 @@ async def handle_status(request):
         "water_active": water_active,
         "providers": providers,
     }
-    print(f"  [status] providers={len(providers)} keys={[p['key'] for p in providers]} connected={[p['key'] for p in providers if p.get('connected')]}")
     return web.json_response(resp)
 
 
