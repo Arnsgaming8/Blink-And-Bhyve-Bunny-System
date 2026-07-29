@@ -56,14 +56,9 @@ async def _patched_signin(auth, *args, **kwargs):
             wait = int(info.get("next_time_in_secs", 600))
         except Exception:
             wait = 600
-        # Cap the wait at 1 hour max — don't block for 24h
-        max_wait = 3600
-        if wait > max_wait:
-            print(f"  RATE LIMITED by Blink. Requested {wait}s, capping to {max_wait}s")
-            wait = max_wait
-        else:
-            print(f"  RATE LIMITED by Blink. Waiting {wait}s...")
-        await asyncio.sleep(wait)
+        # Don't sleep here — let the bridge retry loop handle backoff.
+        # Sleeping here would block connect() for up to 24 hours.
+        print(f"  RATE LIMITED by Blink. Retry in ~{wait}s")
     return None
 
 _bapi.oauth_signin = _patched_signin
