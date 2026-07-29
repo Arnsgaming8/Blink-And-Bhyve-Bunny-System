@@ -56,7 +56,13 @@ async def _patched_signin(auth, *args, **kwargs):
             wait = int(info.get("next_time_in_secs", 600))
         except Exception:
             wait = 600
-        print(f"  RATE LIMITED by Blink. Waiting {wait}s...")
+        # Cap the wait at 1 hour max — don't block for 24h
+        max_wait = 3600
+        if wait > max_wait:
+            print(f"  RATE LIMITED by Blink. Requested {wait}s, capping to {max_wait}s")
+            wait = max_wait
+        else:
+            print(f"  RATE LIMITED by Blink. Waiting {wait}s...")
         await asyncio.sleep(wait)
     return None
 
