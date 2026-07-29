@@ -58,7 +58,8 @@ async def _patched_signin(auth, *args, **kwargs):
             wait = 600
         # Don't sleep here — let the bridge retry loop handle backoff.
         # Sleeping here would block connect() for up to 24 hours.
-        print(f"  RATE LIMITED by Blink. Retry in ~{wait}s")
+        state.blink_rate_limit_until = time.time() + wait
+        print(f"  RATE LIMITED by Blink (expires in ~{wait}s, will retry later)")
     return None
 
 _bapi.oauth_signin = _patched_signin

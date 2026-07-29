@@ -11,6 +11,7 @@ last_poll = None
 last_user_arm = {}
 handle_2fa_task: "asyncio.Task | None" = None
 sprinkler_instances_by_name: dict = {}
+blink_rate_limit_until: float = 0.0  # timestamp when Blink rate limit expires
 
 
 # Lazily-created asyncio.Event used to wake the 2FA background handler the

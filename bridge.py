@@ -321,6 +321,9 @@ async def main():
                     last_try = _last_connect_attempt.get(cam_name, 0.0)
                     if time.time() - last_try < _connect_retry_delay:
                         continue
+                    # Skip if Blink rate limit is still active
+                    if time.time() < state.blink_rate_limit_until:
+                        continue
                     _last_connect_attempt[cam_name] = time.time()
                     try:
                         ok = await asyncio.wait_for(cam_inst.connect(), timeout=30)
