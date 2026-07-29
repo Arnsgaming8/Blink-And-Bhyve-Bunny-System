@@ -312,6 +312,12 @@ async def main():
                         PROVIDER_STATUS.setdefault(cam_name, {})["connected"] = True
                         PROVIDER_STATUS.setdefault(cam_name, {}).pop("error", None)
                         continue
+                    # Skip reconnect if 2FA is already pending — each login
+                    # attempt would trigger a new code to be emailed.
+                    if (state.blink_instance is not None or
+                            (state.handle_2fa_task is not None and
+                             not state.handle_2fa_task.done())):
+                        continue
                     last_try = _last_connect_attempt.get(cam_name, 0.0)
                     if time.time() - last_try < _connect_retry_delay:
                         continue
