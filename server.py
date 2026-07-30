@@ -1315,12 +1315,26 @@ async def handle_2fa_resend(request):
             try:
                 ok = await asyncio.wait_for(blink_obj.start(), timeout=30)
                 if ok:
-                    state.active_blink = blink_obj
-                    state.blink_instance = None
-                    state.twofa_pending = False
-                    from bridge import _save_blink_auth
-                    await _save_blink_auth(blink_obj.auth)
-                    return web.json_response({"ok": True, "message": "Login successful."})
+                    # Fully initialize: setup_urls + homescreen before declaring success
+                    try:
+                        blink_obj.setup_urls()
+                        await blink_obj.get_homescreen()
+                        await blink_obj.setup_post_verify()
+                    except Exception:
+                        pass
+                    if getattr(blink_obj, "urls", None) is not None:
+                        state.active_blink = blink_obj
+                        state.blink_instance = None
+                        state.twofa_pending = False
+                        from bridge import _save_blink_auth
+                        await _save_blink_auth(blink_obj.auth)
+                        return web.json_response({"ok": True, "message": "Login successful."})
+                    else:
+                        # start() said ok but urls not set — need 2FA
+                        state.blink_instance = blink_obj
+                        state.twofa_pending = False
+                        errors.log_error("main.blink_2fa", "Login ok but urls missing — need 2FA")
+                        return web.json_response({"ok": True, "message": "New code sent to your email"})
             except BlinkTwoFARequiredError:
                 state.blink_instance = blink_obj
                 state.twofa_pending = False
@@ -1331,14 +1345,25 @@ async def handle_2fa_resend(request):
                 errors.log_error("main.blink_2fa_resend", f"Login failed: {e}")
                 return web.json_response({"ok": False, "error": f"Blink login failed: {e}"}, status=500)
 
-            errors.log_error("main.blink_2fa_resend", "Login succeeded unexpectedly (no 2FA)")
-            state.active_blink = blink_obj
-            state.blink_instance = None
-            state.twofa_pending = False
-            state.blink_rate_limit_until = 0.0  # Clear rate limit — login succeeded
-            from bridge import _save_blink_auth
-            await _save_blink_auth(blink_obj.auth)
-            return web.json_response({"ok": True, "message": "Login successful."})
+            # start() returned True but no exception — check if fully initialized
+            blink_obj.setup_urls()
+            if getattr(blink_obj, "urls", None) is not None:
+                try:
+                    await blink_obj.get_homescreen()
+                    await blink_obj.setup_post_verify()
+                except Exception:
+                    pass
+                state.active_blink = blink_obj
+                state.blink_instance = None
+                state.twofa_pending = False
+                from bridge import _save_blink_auth
+                await _save_blink_auth(blink_obj.auth)
+                return web.json_response({"ok": True, "message": "Login successful."})
+            else:
+                state.blink_instance = blink_obj
+                state.twofa_pending = False
+                errors.log_error("main.blink_2fa", "Login ok but urls missing — need 2FA")
+                return web.json_response({"ok": True, "message": "New code sent to your email"})
     except Exception as e:
         errors.log_error("main.blink_2fa_resend", str(e), exc_info=True)
         return web.json_response({"ok": False, "error": str(e)}, status=500)
