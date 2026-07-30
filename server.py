@@ -1321,6 +1321,7 @@ async def handle_2fa_resend(request):
             except BlinkTwoFARequiredError:
                 state.blink_instance = blink_obj
                 state.twofa_pending = False
+                state.blink_rate_limit_until = 0.0  # Clear rate limit — 2FA triggered, not rate limited
                 errors.log_error("main.blink_2fa", "New 2FA code sent to email")
                 return web.json_response({"ok": True, "message": "New code sent to your email"})
             except Exception as e:
@@ -1331,6 +1332,7 @@ async def handle_2fa_resend(request):
             state.active_blink = blink_obj
             state.blink_instance = None
             state.twofa_pending = False
+            state.blink_rate_limit_until = 0.0  # Clear rate limit — login succeeded
             from bridge import _save_blink_auth
             await _save_blink_auth(blink_obj.auth)
             return web.json_response({"ok": True, "message": "Login successful."})
