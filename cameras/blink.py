@@ -223,6 +223,16 @@ class BlinkCameraProvider(CameraProvider):
             if not ok:
                 return events
 
+        # Guard: blink.urls must be set up before we can refresh
+        if getattr(self.blink, "urls", None) is None:
+            try:
+                self.blink.setup_urls()
+            except Exception:
+                pass
+            if getattr(self.blink, "urls", None) is None:
+                print("  Blink urls not ready — skipping refresh")
+                return events
+
         try:
             await self.blink.refresh()
         except Exception as e:
