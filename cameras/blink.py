@@ -230,7 +230,9 @@ class BlinkCameraProvider(CameraProvider):
             except Exception:
                 pass
             if getattr(self.blink, "urls", None) is None:
-                print("  Blink urls not ready — skipping refresh")
+                print("  Blink urls not ready — resetting connection")
+                self._connected = False
+                self.blink = None
                 return events
 
         try:
