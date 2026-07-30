@@ -1295,6 +1295,9 @@ async def handle_2fa_resend(request):
         errors.log_error("main.blink_2fa_resend", "No Blink credentials configured")
         return web.json_response({"ok": False, "error": "No Blink credentials configured"}, status=400)
 
+    # Clear any stale rate limit — user is actively requesting a new code
+    state.blink_rate_limit_until = 0.0
+
     try:
         from blinkpy.blinkpy import Blink
         from blinkpy.auth import Auth, BlinkTwoFARequiredError
@@ -1325,6 +1328,8 @@ async def handle_2fa_resend(request):
                 errors.log_error("main.blink_2fa", "New 2FA code sent to email")
                 return web.json_response({"ok": True, "message": "New code sent to your email"})
             except Exception as e:
+                # Don't let a 429 during resend leave the banner stuck
+                state.blink_rate_limit_until = 0.0
                 errors.log_error("main.blink_2fa_resend", f"Login failed: {e}")
                 return web.json_response({"ok": False, "error": f"Blink login failed: {e}"}, status=500)
 
