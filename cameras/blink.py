@@ -171,13 +171,14 @@ class BlinkCameraProvider(CameraProvider):
             auth_data.update(await self._load_auth())
             blink.auth = Auth(auth_data, session=self._session)
 
-            try:
-                ok = await blink.start()
-            except BlinkTwoFARequiredError:
-                state.blink_instance = blink
-                state.twofa_pending = False
-                print("  Blink requires 2FA — waiting for code via dashboard")
-                return False
+        try:
+            ok = await blink.start()
+        except BlinkTwoFARequiredError:
+            state.blink_instance = blink
+            state.twofa_pending = False
+            state.blink_rate_limit_until = 0.0  # Clear rate limit — login succeeded, now in 2FA flow
+            print("  Blink requires 2FA — waiting for code via dashboard")
+            return False
 
             if ok:
                 self.blink = blink
@@ -191,11 +192,12 @@ class BlinkCameraProvider(CameraProvider):
             errors.log_error("blink.connect", msg)
             return False
 
-        except BlinkTwoFARequiredError:
-            state.blink_instance = blink
-            state.twofa_pending = False
-            print("  Blink 2FA required during connect")
-            return False
+    except BlinkTwoFARequiredError:
+        state.blink_instance = blink
+        state.twofa_pending = False
+        state.blink_rate_limit_until = 0.0  # Clear rate limit — login succeeded, now in 2FA flow
+        print("  Blink 2FA required during connect")
+        return False
         except Exception as e:
             errors.log_error("blink.connect", str(e), exc_info=True)
             return False
